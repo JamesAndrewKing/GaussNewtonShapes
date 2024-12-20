@@ -73,7 +73,7 @@ def calculate_A_laplacian(model, pts):
 
     return A_laplacian.detach()
 
-def compute_gram_matrix(model, pts_boundary, pts_corners, pts_space, loss_weights):
+def compute_gram_matrix(model, config):
     """
     Compute the diagonal of the Hessian matrix.
     
@@ -87,6 +87,11 @@ def compute_gram_matrix(model, pts_boundary, pts_corners, pts_space, loss_weight
     Returns:
         torch.Tensor: Preconditioning gram matrix [n_params, n_params].
     """
+    pts_boundary = config.get("pts_boundary")
+    pts_corners = config.get("pts_corners")
+    pts_space = config.get("pts_space")
+    loss_weights = config.get("loss_weights")
+    
     A = loss_weights["interface"] * calculate_A_interface(model, pts_boundary)
     A += loss_weights["interface"] * loss_weights["interface_corners"] * calculate_A_interface(model, pts_corners)
     # A = (calculate_A_interface(params, pts_boundary) + 10*calculate_A_interface(params, pts_corners))

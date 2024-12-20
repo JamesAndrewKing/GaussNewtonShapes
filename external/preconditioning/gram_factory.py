@@ -1,0 +1,100 @@
+import torch
+# Approximate Hessians
+
+def calculate_A_interface(params, pts, vphi):
+    """
+    Calculate the diagonal of boundary integral matrix A_bndry.
+    
+    Args:
+        params: Model parameters as a dictionary.
+        pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
+        vphi: Function mapping parameters and points to phi=d_theta f.
+        
+    Returns:
+        torch.Tensor: Gram matrix preconditioner for the boundary loss [n_params, n_params].
+    """
+    # Compute φ_i at boundary points
+    phi_at_pts = vphi(params, pts)  # Returns a dict
+
+    # Aggregate φ_i into a single tensor
+    phi_at_pts_tensor = torch.cat([p.flatten(start_dim=1) for p in phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params]
+    A_bndry = torch.einsum('bi,bj->ij', phi_at_pts_tensor, phi_at_pts_tensor) / len(pts)
+
+    return A_bndry.detach()
+
+def calculate_A_eikonal(params, pts, v_phi_x, vf_x):
+    """
+    Calculate the diagonal of boundary integral matrix A_bndry.
+    
+    Args:
+        params: Model parameters as a dictionary.
+        pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
+        vphi_x: Function mapping parameters and points to d_x phi.
+        vf_x: Function mapping parameters and points to d_x f
+        
+    Returns:
+        torch.Tensor: Gram matrix preconditioner for the eikonal loss [n_params, n_params].
+    """
+    grad_phi_at_pts = v_phi_x(params, pts)  # Returns a dict
+    grad_f_at_pts = vf_x(params, pts)  # Returns a tensor of shape [n_points, 1, n_dims]
+    grad_f_at_pts = grad_f_at_pts / (torch.norm(grad_f_at_pts, dim=-1, keepdim=True)+1e-5)
+
+    # Aggregate gradients into a single tensor
+    grad_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in grad_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params * n_dims]
+    # Reshape to separate the dimensions
+    n_points, n_params_times_dims = grad_phi_tensor.shape
+    n_dims = pts.shape[1]
+    n_params = n_params_times_dims // n_dims
+    grad_phi_tensor = grad_phi_tensor.reshape(n_points, n_params, n_dims)  # Shape: [n_points, n_params, n_dims]
+    dot_product_term = torch.einsum("bik,bik->i", grad_phi_tensor, grad_f_at_pts)
+    A_eikonal = torch.einsum('i,j->ij', dot_product_term, dot_product_term)/n_points
+    
+    return A_eikonal.detach()
+
+
+def calculate_A_laplacian(params, pts, v_phi_laplace):
+    """
+    Calculate the diagonal of boundary integral matrix A_bndry.
+    
+    Args:
+        params: Model parameters as a dictionary.
+        pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
+        v_phi_laplace: Function mapping parameters and points to laplacian of phi.
+        
+    Returns:
+        torch.Tensor: Gram matrix preconditioner for the laplacian loss [n_params, n_params].
+    """
+    # Compute Laplacians of φ_i at points
+    lap_phi_at_pts = v_phi_laplace(params, pts)  # Returns a dict
+    
+    # Aggregate Laplacians into a single tensor
+    lap_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in lap_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params]
+    A_laplacian = torch.einsum('bi,bj->ij', lap_phi_tensor, lap_phi_tensor) / len(pts)
+
+    return A_laplacian.detach()
+
+def compute_gram_matrix(params, pts_boundary, pts_corners, pts_space, loss_weights, vphi, v_phi_x, vf_x, v_phi_laplace):
+    """
+    Compute the diagonal of the Hessian matrix.
+    
+    Args:
+        params: Model parameters as a dictionary.
+        pts_boundary: Boundary points tensor of shape [n_points, n_dims].
+        pts_corners: Corner points tensor of shape [n_points, n_dims].
+        pts_space: Space points tensor of shape [n_points, n_dims].
+        loss_weights: Dictionary containing the weights of the different losses.
+        
+    Returns:
+        torch.Tensor: Preconditioning gram matrix [n_params, n_params].
+    """
+    A = loss_weights["interface"] * calculate_A_interface(params, pts_boundary, vphi)
+    A += loss_weights["interface"] * loss_weights["interface_corners"] * calculate_A_interface(params, pts_corners, vphi)
+    # A = (calculate_A_interface(params, pts_boundary) + 10*calculate_A_interface(params, pts_corners))
+    # A = 2 * (calculate_A_interface(params, pts_bndry))
+    # A += 2 * (calculate_A_eikonal(params, pts_bndry) + 10*calculate_A_eikonal(params, pts_corners))
+    A += loss_weights["eikonal"] * calculate_A_eikonal(params, pts_boundary, v_phi_x, vf_x)
+    # A += 0.01*(calculate_A_eikonal(params, pts_boundary))
+    # A += calculate_A_laplacian(params, pts_space)
+    A += loss_weights["laplacian"] * calculate_A_laplacian(params, pts_space, v_phi_laplace)
+
+    return A.detach()

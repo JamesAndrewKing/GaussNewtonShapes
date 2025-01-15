@@ -15,7 +15,9 @@ class GeneralNet(nn.Module):
         self.act = act
         self.params = dict(self.named_parameters())
 
-    def forward(self, x):
+    def forward(self, x, z=None):
+        if z is not None:
+            x = torch.cat([x, z], dim=-1)
         x = self.fcs[0](x)
         for i in range(2, self.D + 1):
             x = self.fcs[i - 1](self.act(x))

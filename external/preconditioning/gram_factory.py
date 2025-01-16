@@ -89,6 +89,7 @@ def compute_gram_matrix(model, config):
     """
     pts_boundary = config.get("pts_boundary")
     pts_corners = config.get("pts_corners")
+    pts_eikonal = config.get("pts_eikonal")
     pts_space = config.get("pts_space")
     loss_weights = config.get("loss_weights")
     
@@ -97,7 +98,7 @@ def compute_gram_matrix(model, config):
     # A = (calculate_A_interface(params, pts_boundary) + 10*calculate_A_interface(params, pts_corners))
     # A = 2 * (calculate_A_interface(params, pts_bndry))
     # A += 2 * (calculate_A_eikonal(params, pts_bndry) + 10*calculate_A_eikonal(params, pts_corners))
-    A += loss_weights["eikonal"] * calculate_A_eikonal(model, pts_boundary)
+    A += loss_weights["eikonal"] * calculate_A_eikonal(model, pts_eikonal)
     # A += 0.01*(calculate_A_eikonal(params, pts_boundary))
     # A += calculate_A_laplacian(params, pts_space)
     A += loss_weights["laplacian"] * calculate_A_laplacian(model, pts_space)

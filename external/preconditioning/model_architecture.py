@@ -8,7 +8,7 @@ class GeneralNet(nn.Module):
         super(GeneralNet, self).__init__()
         self.ks = ks
         self.fcs = nn.ModuleList([
-            nn.Linear(in_features, out_features)
+            nn.Linear(in_features, out_features, dtype=torch.float64)
             for in_features, out_features in zip(self.ks[:-1], self.ks[1:])
         ])
         self.D = len(self.fcs)
@@ -17,7 +17,7 @@ class GeneralNet(nn.Module):
 
     def forward(self, x, z=None):
         if z is not None:
-            x = torch.cat([x, z], dim=-1)
+            x = torch.cat([x, z], dim=-1).to(dtype=torch.float64)
         x = self.fcs[0](x)
         for i in range(2, self.D + 1):
             x = self.fcs[i - 1](self.act(x))
@@ -25,23 +25,23 @@ class GeneralNet(nn.Module):
 
     def f(self, params, x):
         """Wrapper for functional_call."""
-        return functional_call(self, params, x)
+        return functional_call(self, params, x.to(dtype=torch.float64))
 
     def _f_x(self, params, x):
         """Jacobian of f with respect to input x (non-vectorized, private)."""
-        return jacrev(self.f, argnums=1)(params, x)
+        return jacrev(self.f, argnums=1)(params, x.to(dtype=torch.float64))
 
     def vf_x(self, params, x):
         """Vectorized Jacobian of f with respect to input x."""
-        return vmap(self._f_x, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._f_x, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _f_xx(self, params, x):
         """Hessian of f with respect to input x (non-vectorized, private)."""
-        return jacfwd(self._f_x, argnums=1)(params, x)
+        return jacfwd(self._f_x, argnums=1)(params, x.to(dtype=torch.float64))
 
     def vf_xx(self, params, x):
         """Vectorized Hessian of f with respect to input x."""
-        return vmap(self._f_xx, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._f_xx, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _f_laplace(self, params, x):
         """Laplacian of f with respect to input x (non-vectorized, private)."""
@@ -51,28 +51,28 @@ class GeneralNet(nn.Module):
 
     def v_f_laplace(self, params, x):
         """Vectorized Laplacian of f."""
-        return vmap(self._f_laplace, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._f_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _phi(self, params, x):
         """Gradient of f with respect to parameters theta (non-vectorized, private)."""
-        return jacrev(self.f, argnums=0)(params, x)
+        return jacrev(self.f, argnums=0)(params, x.to(dtype=torch.float64))
 
     def vphi(self, params, x):
         """Vectorized gradient of f with respect to parameters theta."""
-        return vmap(self._phi, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._phi, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _phi_x(self, params, x):
         """Gradient of phi with respect to input x (non-vectorized, private)."""
-        return jacfwd(self._phi, argnums=1)(params, x)
+        return jacfwd(self._phi, argnums=1)(params, x.to(dtype=torch.float64))
 
     def v_phi_x(self, params, x):
         """Vectorized gradient of phi with respect to input x."""
-        return vmap(self._phi_x, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._phi_x, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _phi_laplace(self, params, x):
         """Laplacian of phi (non-vectorized, private)."""
-        return jacrev(self._f_laplace, argnums=0)(params, x)
+        return jacrev(self._f_laplace, argnums=0)(params, x.to(dtype=torch.float64))
 
     def v_phi_laplace(self, params, x):
         """Vectorized Laplacian of phi."""
-        return vmap(self._phi_laplace, in_dims=(None, 0), out_dims=(0))(params, x)
+        return vmap(self._phi_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))

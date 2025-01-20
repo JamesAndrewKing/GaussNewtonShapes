@@ -64,6 +64,9 @@ class HandNGD:
         self.lr = lr
         self.t = 0
         self.config = config
+        self.loss = 1e6
+        self.old_loss = 1e6
+        self.old_params = self.params
 
     def zero_grad(self):
         """Set gradients of all optimized parameters to zero."""
@@ -81,7 +84,7 @@ class HandNGD:
         flat_grads = parameters_to_vector(grads)  # shape: (N,)
         N = flat_grads.numel()
         # A = compute_gram_matrix(self.model, self.config) + 1e-5*torch.eye(N)
-        A = compute_gram_matrix(self.model, self.config) + 1e-7*torch.eye(N)
+        A = compute_gram_matrix(self.model, self.config) + 1e-6*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")
@@ -95,10 +98,18 @@ class HandNGD:
         """
         self.t += 1
 
-        self.apply_preconditioner_to_grads()
+        if self.loss < self.old_loss:
 
-        for param in self.params:
-            if param.grad is None:
-                continue
+            self.old_params = self.params
+            self.old_loss = self.loss
 
-            param.data -= self.lr * param.grad
+            self.apply_preconditioner_to_grads()
+    
+            for param in self.params:
+                if param.grad is None:
+                    continue
+    
+                param.data -= self.lr * param.grad
+        else:
+            print("Not updating")
+            self.params = self.old_params

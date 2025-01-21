@@ -83,7 +83,6 @@ class HandNGD:
         grads = [p.grad for p in self.params if p.grad is not None]
         flat_grads = parameters_to_vector(grads)  # shape: (N,)
         N = flat_grads.numel()
-        # A = compute_gram_matrix(self.model, self.config) + 1e-5*torch.eye(N)
         A = compute_gram_matrix(self.model, self.config) + 1e-6*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
@@ -111,5 +110,5 @@ class HandNGD:
     
                 param.data -= self.lr * param.grad
         else:
-            print("Not updating")
+            print("Not updating parameters because of loss metric increase")
             self.params = self.old_params

@@ -83,7 +83,8 @@ class HandNGD:
         grads = [p.grad for p in self.params if p.grad is not None]
         flat_grads = parameters_to_vector(grads)  # shape: (N,)
         N = flat_grads.numel()
-        A = compute_gram_matrix(self.model, self.config) + 1e-6*torch.eye(N)
+        eps = self.config.get("regularization")
+        A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")
@@ -97,7 +98,7 @@ class HandNGD:
         """
         self.t += 1
 
-        if self.loss < self.old_loss:
+        if self.loss <= self.old_loss:
 
             self.old_params = self.params
             self.old_loss = self.loss

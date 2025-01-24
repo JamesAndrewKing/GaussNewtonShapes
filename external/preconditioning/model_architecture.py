@@ -78,6 +78,21 @@ class GeneralNet(nn.Module):
         """Vectorized gradient of f with respect to parameters theta."""
         return vmap(self._d_theta_f_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
+    def _f_eikonal(self, params, x):
+        """Eikonal residual of f with respect to input x (non-vectorized, private)."""
+        return self._f_x(params, x).squeeze(1).square().sum(1).sqrt() - 1
+
+    def v_f_eikonal(self, params, x):
+        """Vectorized gradient of f with respect to parameters theta."""
+        return vmap(self._f_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+
+    def _d_theta_f_eikonal(self, params, x):
+        return jacrev(self._f_eikonal, argnums=0)(params, x.to(dtype=torch.float64))
+
+    def v_d_theta_f_eikonal(self, params, x):
+        """Vectorized gradient of f with respect to parameters theta."""
+        return vmap(self._d_theta_f_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+
     def _phi(self, params, x):
         """Gradient of f with respect to parameters theta (non-vectorized, private)."""
         return jacrev(self.f, argnums=0)(params, x.to(dtype=torch.float64))
@@ -86,13 +101,13 @@ class GeneralNet(nn.Module):
         """Vectorized gradient of f with respect to parameters theta."""
         return vmap(self._phi, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-    def _phi_x(self, params, x):
-        """Gradient of phi with respect to input x (non-vectorized, private)."""
-        return jacfwd(self._phi, argnums=1)(params, x.to(dtype=torch.float64))
+    # def _phi_x(self, params, x):
+    #     """Gradient of phi with respect to input x (non-vectorized, private)."""
+    #     return jacfwd(self._phi, argnums=1)(params, x.to(dtype=torch.float64))
 
-    def v_phi_x(self, params, x):
-        """Vectorized gradient of phi with respect to input x."""
-        return vmap(self._phi_x, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    # def v_phi_x(self, params, x):
+    #     """Vectorized gradient of phi with respect to input x."""
+    #     return vmap(self._phi_x, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _phi_laplace(self, params, x):
         """Laplacian of phi (non-vectorized, private)."""

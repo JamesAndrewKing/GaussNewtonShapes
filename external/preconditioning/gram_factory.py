@@ -23,33 +23,40 @@ def calculate_A_interface(model, pts):
     return A_bndry.detach()
 
 def calculate_A_eikonal(model, pts):
-    """
-    Calculate the diagonal of boundary integral matrix A_bndry.
-    
-    Args:
-        params: Model parameters as a dictionary.
-        pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
-        vphi_x: Function mapping parameters and points to d_x phi.
-        vf_x: Function mapping parameters and points to d_x f
-        
-    Returns:
-        torch.Tensor: Gram matrix preconditioner for the eikonal loss [n_params, n_params].
-    """
-    grad_phi_at_pts = model.v_phi_x(model.params, pts)  # Returns a dict
-    grad_f_at_pts = model.vf_x(model.params, pts)  # Returns a tensor of shape [n_points, 1, n_dims]
-    grad_f_at_pts = grad_f_at_pts / (torch.norm(grad_f_at_pts, dim=-1, keepdim=True)+1e-5)
+    dr_dict = model.v_d_theta_f_eikonal(model.params, pts)
+    dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
+    A_eikonal = torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
-    # Aggregate gradients into a single tensor
-    grad_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in grad_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params * n_dims]
-    # Reshape to separate the dimensions
-    n_points, n_params_times_dims = grad_phi_tensor.shape
-    n_dims = pts.shape[1]
-    n_params = n_params_times_dims // n_dims
-    grad_phi_tensor = grad_phi_tensor.reshape(n_points, n_params, n_dims)  # Shape: [n_points, n_params, n_dims]
-    dot_product_term = torch.einsum("bik,bik->i", grad_phi_tensor, grad_f_at_pts)
-    A_eikonal = torch.einsum('i,j->ij', dot_product_term, dot_product_term)/n_points
+    return A_eikonal
+
+# def calculate_A_eikonal(model, pts):
+#     """
+#     Calculate the diagonal of boundary integral matrix A_bndry.
     
-    return A_eikonal.detach()
+#     Args:
+#         params: Model parameters as a dictionary.
+#         pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
+#         vphi_x: Function mapping parameters and points to d_x phi.
+#         vf_x: Function mapping parameters and points to d_x f
+        
+#     Returns:
+#         torch.Tensor: Gram matrix preconditioner for the eikonal loss [n_params, n_params].
+#     """
+#     grad_phi_at_pts = model.v_phi_x(model.params, pts)  # Returns a dict
+#     grad_f_at_pts = model.vf_x(model.params, pts)  # Returns a tensor of shape [n_points, 1, n_dims]
+#     grad_f_at_pts = grad_f_at_pts / (torch.norm(grad_f_at_pts, dim=-1, keepdim=True)+1e-5)
+
+#     # Aggregate gradients into a single tensor
+#     grad_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in grad_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params * n_dims]
+#     # Reshape to separate the dimensions
+#     n_points, n_params_times_dims = grad_phi_tensor.shape
+#     n_dims = pts.shape[1]
+#     n_params = n_params_times_dims // n_dims
+#     grad_phi_tensor = grad_phi_tensor.reshape(n_points, n_params, n_dims)  # Shape: [n_points, n_params, n_dims]
+#     dot_product_term = torch.einsum("bik,bik->i", grad_phi_tensor, grad_f_at_pts)
+#     A_eikonal = torch.einsum('i,j->ij', dot_product_term, dot_product_term)/n_points
+    
+#     return A_eikonal.detach()
 
 
 def calculate_A_laplacian(model, pts):

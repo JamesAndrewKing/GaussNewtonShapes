@@ -107,6 +107,7 @@ def compute_gram_matrix(model, config):
     pts_corners = config.get("pts_corners")
     pts_eikonal = config.get("pts_eikonal")
     pts_space = config.get("pts_space")
+    pts_surface = config.get("pts_surface")
     loss_weights = config.get("loss_weights")
 
 
@@ -123,6 +124,6 @@ def compute_gram_matrix(model, config):
         A += loss_weights["laplacian"] * calculate_A_laplacian(model, pts_space)
     
     if loss_weights.get("curvature", 0) != 0:
-        A += loss_weights["curvature"] * calculate_A_mean_curvature(model, pts_space)
+        A += loss_weights["curvature"] * calculate_A_mean_curvature(model, pts_surface)
 
     return A.detach()

@@ -98,7 +98,7 @@ class HandNGD:
         """
         self.t += 1
 
-        if self.loss <= self.old_loss:
+        if self.loss <= 2 * self.old_loss:
 
             self.old_params = self.params
             self.old_loss = self.loss
@@ -111,5 +111,5 @@ class HandNGD:
     
                 param.data -= self.lr * param.grad
         else:
-            print("Not updating parameters because of loss metric increase")
+            print("Not updating parameters because of large loss metric increase")
             self.params = self.old_params

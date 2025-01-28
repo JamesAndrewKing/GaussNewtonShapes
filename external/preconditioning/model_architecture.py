@@ -4,7 +4,7 @@ from torch import tanh
 from torch.func import vmap, jacrev, jacfwd, functional_call
 
 class GeneralNet(nn.Module):
-    def __init__(self, ks, act=torch.tanh):
+    def __init__(self, ks, act=torch.tanh, init_mean_curv=True):
         super(GeneralNet, self).__init__()
         self.ks = ks
         self.fcs = nn.ModuleList([
@@ -14,6 +14,9 @@ class GeneralNet(nn.Module):
         self.D = len(self.fcs)
         self.act = act
         self.params = dict(self.named_parameters())
+        self.init_mean_curv = init_mean_curv
+        if self.init_mean_curv:
+            self._define_mean_curvature_methods()
 
     def forward(self, x, z=None):
         if z is not None:
@@ -53,30 +56,31 @@ class GeneralNet(nn.Module):
         """Vectorized Laplacian of f."""
         return vmap(self._f_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-    def _f_mean_curvature(self, params, x):
-        """Mean curvature of f with respect to input x (non-vectorized, private)."""
-        F = self._f_x(params, x).squeeze(1)
-        H = self._f_xx(params, x).squeeze(1)
-        ## Quadratic form
-        FHFT = torch.einsum('bi,bij,bj->b', F, H, F)
-        ## Trace of Hessian
-        trH = torch.einsum('bii->b', H)
-        ## Norm of gradient
-        N = F.square().sum(1).sqrt()
-        ## Mean-curvature
-        mean_curvatures = -(FHFT - N.pow(2)*trH) / (2*N.pow(3))
-        return mean_curvatures
+    def _define_mean_curvature_methods(self):
+        """Dynamically define mean curvature-related methods."""
+        def _f_mean_curvature(params, x):
+            F = self._f_x(params, x).squeeze(1)
+            H = self._f_xx(params, x).squeeze(1)
+            FHFT = torch.einsum('bi,bij,bj->b', F, H, F)  # Quadratic form
+            trH = torch.einsum('bii->b', H)  # Trace of Hessian
+            N = F.square().sum(1).sqrt()  # Norm of gradient
+            mean_curvatures = -(FHFT - N.pow(2) * trH) / (2 * N.pow(3))
+            return mean_curvatures
 
-    def v_f_mean_curvature(self, params, x):
-        """Vectorized mean curvature of f."""
-        return vmap(self._f_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
-    
-    def _d_theta_f_mean_curvature(self, params, x):
-        return jacrev(self._f_mean_curvature, argnums=0)(params, x.to(dtype=torch.float64))
+        def v_f_mean_curvature(params, x):
+            return vmap(_f_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-    def v_d_theta_f_mean_curvature(self, params, x):
-        """Vectorized gradient of f with respect to parameters theta."""
-        return vmap(self._d_theta_f_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        def _d_theta_f_mean_curvature(params, x):
+            return jacrev(_f_mean_curvature, argnums=0)(params, x.to(dtype=torch.float64))
+
+        def v_d_theta_f_mean_curvature(params, x):
+            return vmap(_d_theta_f_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+
+        # Dynamically bind the methods to the instance
+        self._f_mean_curvature = _f_mean_curvature
+        self.v_f_mean_curvature = v_f_mean_curvature
+        self._d_theta_f_mean_curvature = _d_theta_f_mean_curvature
+        self.v_d_theta_f_mean_curvature = v_d_theta_f_mean_curvature
 
     def _f_eikonal(self, params, x):
         """Eikonal residual of f with respect to input x (non-vectorized, private)."""

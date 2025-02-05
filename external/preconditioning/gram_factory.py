@@ -30,6 +30,24 @@ def calculate_A_eikonal(model, pts):
     return A_eikonal
 
 # def calculate_A_eikonal(model, pts):
+#     dr_dict = model.v_d_theta_f_eikonal(model.params, pts)
+#     dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
+#     grad_phi_at_pts = model.v_phi_x(model.params, pts)
+#     grad_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in grad_phi_at_pts.values()], dim=1)
+#     norm_grad_f = torch.norm(model.vf_x(model.params, pts), dim=-1, keepdim=True)
+#     dr = dr / torch.sqrt(norm_grad_f + torch.ones_like(norm_grad_f)).view(-1, 1)
+#      # Reshape to separate the dimensions
+#     n_points, n_params_times_dims = grad_phi_tensor.shape
+#     n_dims = pts.shape[1]
+#     n_params = n_params_times_dims // n_dims
+#     grad_phi_tensor = grad_phi_tensor.reshape(n_points, n_params, n_dims)  # Shape: [n_points, n_params, n_dims]
+#     grad_phi_tensor = grad_phi_tensor * torch.sqrt(norm_grad_f / (norm_grad_f + torch.ones_like(norm_grad_f)))
+    
+#     A_eikonal = (torch.einsum('bi,bj->ij', dr, dr) + torch.einsum("bik,bik->i", grad_phi_tensor, grad_phi_tensor)) / len(pts)
+
+#     return A_eikonal
+
+# def calculate_A_eikonal(model, pts):
 #     """
 #     Calculate the diagonal of boundary integral matrix A_bndry.
     

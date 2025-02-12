@@ -46,15 +46,15 @@ class GeneralNet(nn.Module):
         """Vectorized Hessian of f with respect to input x."""
         return vmap(self._f_xx, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-    def _f_laplace(self, params, x):
-        """Laplacian of f with respect to input x (non-vectorized, private)."""
-        hessian = self._f_xx(params, x).squeeze(1)  # Compute the Hessian
-        laplacian = torch.einsum('bii->b', hessian)  # Sum of the diagonal elements
-        return laplacian
+    # def _f_laplace(self, params, x):
+    #     """Laplacian of f with respect to input x (non-vectorized, private)."""
+    #     hessian = self._f_xx(params, x).squeeze(1)  # Compute the Hessian
+    #     laplacian = torch.einsum('bii->b', hessian)  # Sum of the diagonal elements
+    #     return laplacian
 
-    def v_f_laplace(self, params, x):
-        """Vectorized Laplacian of f."""
-        return vmap(self._f_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    # def v_f_laplace(self, params, x):
+    #     """Vectorized Laplacian of f."""
+    #     return vmap(self._f_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
     def _define_mean_curvature_methods(self):
         """Dynamically define mean curvature-related methods."""
@@ -113,10 +113,10 @@ class GeneralNet(nn.Module):
     #     """Vectorized gradient of phi with respect to input x."""
     #     return vmap(self._phi_x, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-    def _phi_laplace(self, params, x):
-        """Laplacian of phi (non-vectorized, private)."""
-        return jacrev(self._f_laplace, argnums=0)(params, x.to(dtype=torch.float64))
+    # def _phi_laplace(self, params, x):
+    #     """Laplacian of phi (non-vectorized, private)."""
+    #     return jacrev(self._f_laplace, argnums=0)(params, x.to(dtype=torch.float64))
 
-    def v_phi_laplace(self, params, x):
-        """Vectorized Laplacian of phi."""
-        return vmap(self._phi_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    # def v_phi_laplace(self, params, x):
+    #     """Vectorized Laplacian of phi."""
+    #     return vmap(self._phi_laplace, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))

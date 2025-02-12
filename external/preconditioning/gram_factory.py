@@ -77,26 +77,26 @@ def calculate_A_eikonal(model, pts):
 #     return A_eikonal.detach()
 
 
-def calculate_A_laplacian(model, pts):
-    """
-    Calculate the diagonal of boundary integral matrix A_bndry.
+# def calculate_A_laplacian(model, pts):
+#     """
+#     Calculate the diagonal of boundary integral matrix A_bndry.
     
-    Args:
-        params: Model parameters as a dictionary.
-        pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
-        v_phi_laplace: Function mapping parameters and points to laplacian of phi.
+#     Args:
+#         params: Model parameters as a dictionary.
+#         pts_bndry: Boundary points as a tensor of shape [n_points, n_dims].
+#         v_phi_laplace: Function mapping parameters and points to laplacian of phi.
         
-    Returns:
-        torch.Tensor: Gram matrix preconditioner for the laplacian loss [n_params, n_params].
-    """
-    # Compute Laplacians of φ_i at points
-    lap_phi_at_pts = model.v_phi_laplace(model.params, pts)  # Returns a dict
+#     Returns:
+#         torch.Tensor: Gram matrix preconditioner for the laplacian loss [n_params, n_params].
+#     """
+#     # Compute Laplacians of φ_i at points
+#     lap_phi_at_pts = model.v_phi_laplace(model.params, pts)  # Returns a dict
     
-    # Aggregate Laplacians into a single tensor
-    lap_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in lap_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params]
-    A_laplacian = torch.einsum('bi,bj->ij', lap_phi_tensor, lap_phi_tensor) / len(pts)
+#     # Aggregate Laplacians into a single tensor
+#     lap_phi_tensor = torch.cat([p.flatten(start_dim=1) for p in lap_phi_at_pts.values()], dim=1)  # Shape: [n_points, n_params]
+#     A_laplacian = torch.einsum('bi,bj->ij', lap_phi_tensor, lap_phi_tensor) / len(pts)
 
-    return A_laplacian.detach()
+#     return A_laplacian.detach()
 
 
 def calculate_A_mean_curvature(model, pts):
@@ -124,7 +124,7 @@ def compute_gram_matrix(model, config):
     pts_boundary = config.get("pts_boundary")
     pts_corners = config.get("pts_corners")
     pts_eikonal = config.get("pts_eikonal")
-    pts_space = config.get("pts_space")
+    # pts_space = config.get("pts_space")
     pts_surface = config.get("pts_surface")
     loss_weights = config.get("loss_weights")
 
@@ -138,8 +138,8 @@ def compute_gram_matrix(model, config):
     if loss_weights.get("eikonal", 0) != 0:
         A += loss_weights["eikonal"] * calculate_A_eikonal(model, pts_eikonal)
 
-    if loss_weights.get("laplacian", 0) != 0:
-        A += loss_weights["laplacian"] * calculate_A_laplacian(model, pts_space)
+    # if loss_weights.get("laplacian", 0) != 0:
+    #     A += loss_weights["laplacian"] * calculate_A_laplacian(model, pts_space)
     
     if loss_weights.get("curvature", 0) != 0:
         A += loss_weights["curvature"] * calculate_A_mean_curvature(model, pts_surface)

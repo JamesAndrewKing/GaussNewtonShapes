@@ -186,7 +186,8 @@ class PHManager():
             return False, torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device)
        
         # select with indices 
-        x_in = self.xs[*x_idcs.T]
+        x_in = self.xs[*x_idcs.T] ## NOTE @JAMES: these are the relevant critical points identified by PH.        
+        # return x_in ## NOTE @JAMES: I think this is all you need: see the explanation below.
         z_in = torch.from_numpy(np.concatenate(z_list)).to(self.xs.device)
         
         list_loss_scc = []
@@ -194,7 +195,25 @@ class PHManager():
         list_loss_sub0 = []
         
         # do single forward pass for all x's
-        Y_grad = self.netp(x_in, z_in)
+        Y_grad = self.netp(x_in, z_in) ## NOTE @JAMES: these are the NN values at those points. 
+        """
+        NOTE @ JAMES
+        _grad in Y_grad refers to the fact that we can backprop through this tensor; not to be confused with gradient of Y.
+        
+        For our connectedness intent, we ultimately call ph_distributed.loss_scc_dim_0 in the loop below, which evaluates this:
+        torch.clamp(iso - Y_grad, max=0.).pow(2).sum()
+        where iso is the level of the iso-level-set, which is 0 for you.
+        
+        This says, that the values in Y_grad (which are positive) should go to 0 to achieve connectedness of the sub-level set.
+        clamp(.., max=0) says that there is nothing to penalize if an entry Y_grad is negative already.
+        The pow and sum() operations aggregate the individual contributions into a scalar objective.
+
+        So for your purposes, the values at x_in, given by NN(x_in) (here =Y_grad), should all go toward 0.
+        With that, I think you can just return x_in and penalize toward zero with your optimizer.
+        (Maybe double check that Y_grad is indeed positive, but I think it should be per construction of PH).
+        """
+        
+        
         # compute loss for each listitem
         cur_idx = 0
         for x_in, loss_key, loss_func in zip(x_list, loss_key_list, loss_func_list):

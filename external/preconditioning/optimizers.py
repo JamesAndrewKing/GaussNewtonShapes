@@ -1,25 +1,17 @@
 import torch
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
-from external.preconditioning.gram_factory import compute_gram_matrix
+from .gram_factory import compute_gram_matrix
 
 class GaussNewton:
     def __init__(self, model, lr, config):
-        """
-        Implements basic gradient descent.
-        
-        Args:
-            params: iterable of torch.Parameters (e.g., model.parameters())
-            lr    : learning rate
-        """
         self.model = model
         self.params_dict = dict(model.named_parameters())
-        self.params = list(model.parameters())  # store references to model parameters
+        self.params = list(model.parameters())
         self.lr = lr
         self.t = 0
         self.config = config
 
     def zero_grad(self):
-        """Set gradients of all optimized parameters to zero."""
         for p in self.params:
             if p.grad is not None:
                 p.grad.zero_()
@@ -31,7 +23,7 @@ class GaussNewton:
         """
         # 1. Flatten all gradients into a single vector.
         grads = [p.grad for p in self.params if p.grad is not None]
-        flat_grads = parameters_to_vector(grads)  # shape: (N,)
+        flat_grads = parameters_to_vector(grads)
         N = flat_grads.numel()
         eps = self.config.get("regularization")
         A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
@@ -44,7 +36,7 @@ class GaussNewton:
 
     def step(self):
         """
-        Perform a single precondtioned gradient descent update step on all parameters:
+        Perform a single Gauss-Newton update step on all parameters:
         """
         self.t += 1
 

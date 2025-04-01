@@ -5,7 +5,8 @@ def compute_distance(model, true_implicit, pts_surface_model, pts_surface_true, 
     # Refine model surface samples for exact error calculation
     pts_surface_model = sample_model_surface_newton(model, pts_surface_model)
     # Cut away points further away than the boundary points
-    distances = torch.norm(pts_surface_model[:, :2], dim=1)    
+    # distances = torch.norm(pts_surface_model[:, :2], dim=1)    
+    distances = torch.norm(pts_surface_model, dim=1)    
     pts_surface_model = pts_surface_model[distances <= max_dist]
     # Compute d_2
     with torch.no_grad():

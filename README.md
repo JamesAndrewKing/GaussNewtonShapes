@@ -1,6 +1,6 @@
-# Geometry-informed Neural Networks (GINNs)
+# Preconditioning for Geometry-informed Neural Networks (GINNs)
 
-### [Project Page](https://arturs-berzins.github.io/GINN/) | [arXiv](https://arxiv.org/abs/2402.14009)
+<!-- ### [Project Page](https://arturs-berzins.github.io/GINN/) | [arXiv](https://arxiv.org/abs/2402.14009)
 
 <img src="media/diagonal_other_overlay.gif" width="800"/>
 
@@ -9,9 +9,13 @@ Instead, GINNs are trained to satisfy design requirements given as constraints a
 In particular, a diversity constraint makes these models generative.
 GINNs not only learn to generate multiple diverse solutions, but can also learn an organized latent space as shown above.
 
-<img src="media/constraints.png" width="800"/>
+<img src="media/constraints.png" width="800"/> -->
 
+This is the code used in my Master's Thesis where I train Implicit Neural Shapes to solve Plateu's Problem using only constraints. The project is forked from (https://arturs-berzins.github.io/GINN/) and builds upon their minimal surface experiment by implementing Gauss-Newton Natural Gradient Descent.
 
+Minimal surface experiments in notebooks, rest of my code in external->preconditioning
+
+!!Under Construction!!
 ## Organization
 
 ```

@@ -1,37 +1,33 @@
 # Preconditioning for Geometry-informed Neural Networks (GINNs)
 
-<!-- ### [Project Page](https://arturs-berzins.github.io/GINN/) | [arXiv](https://arxiv.org/abs/2402.14009)
+> **Note**: This repository is currently under active development.
 
-<img src="media/diagonal_other_overlay.gif" width="800"/>
+This repository contains the code for my Master's Thesis, where I train Implicit Neural Shapes to solve Plateau's Problem using only constraints. The project extends the [original GINN work](https://arturs-berzins.github.io/GINN/) by implementing Gauss-Newton Natural Gradient Descent for minimal surface experiments.
 
-This project accompanies the paper "Geometry-informed Neural Networks", which allows to train shape generative models without data.
-Instead, GINNs are trained to satisfy design requirements given as constraints and objectives.
-In particular, a diversity constraint makes these models generative.
-GINNs not only learn to generate multiple diverse solutions, but can also learn an organized latent space as shown above.
+## Key Features
+- Solves Plateau's problem (minimal surfaces) without training data
+- Implements constraint-based learning with GINNs
+- Features Gauss-Newton optimization alongside traditional methods
+- Generates interactive visualizations of results
 
-<img src="media/constraints.png" width="800"/> -->
-
-This is the code used in my Master's Thesis where I train Implicit Neural Shapes to solve Plateu's Problem using only constraints. The project is forked from (https://arturs-berzins.github.io/GINN/) and builds upon their minimal surface experiment by implementing Gauss-Newton Natural Gradient Descent.
-
-!!Under Construction!!
 ## Organization
 
 ```
 /
-├── notebooks                       # Entry point for the program
+├── notebooks                       # Jupyter notebooks for experiments 
 │   ├── catenoid.ipynb              # Plateu's Problem for Catenoid
 │   └── enneper.ipynb               # Plateau's Problem for Enneper Surface
-├── training/                       # Functionality for training
-│   ├── optimizers.py               # 
-│   └── gram_factory.py             # 
+├── training/                       # Core training functionality
+│   ├── optimizers.py               # Custom Gauss-Newton optimizer
+│   └── gram_factory.py             # Gram matrix computation for GN
 ├── GINN/                           # Code from GINN for sampling and PH
 │   ├── ph/                         # Classes to manage the connectedness loss based on persistent homology
-│   ├── speed/                      # Contains classes useful for multiprocessing or measuring time
+│   ├── speed/                      # Classes useful for multiprocessing or measuring time
 ├── models/                         # Model definition
-│   └── model_architecture.py       # 
+│   └── model_architecture.py       # Neural network architectures and loss residuals
 ├── util/                           # Utilities used throughout the project
-│   ├── surface_sampling.py         #
-│   └── error_metrics.py            # 
+│   ├── surface_sampling.py         # Surface sampling methods
+│   └── error_metrics.py            # Evaluation metrics
 
 ```
 
@@ -39,6 +35,10 @@ This is the code used in my Master's Thesis where I train Implicit Neural Shapes
 
 Install the dependencies, ideally in a fresh environment
 ```pip install -r requirements.txt```
+
+Run the example notebooks
+```jupyter notebook notebooks/catenoid.ipynb```
+```jupyter notebook notebooks/enneper.ipynb```
 
 
 ### Minimal surface
@@ -52,6 +52,6 @@ With [notebooks/catenoid.ipynb](notebooks/catenoid.ipynb) and [notebooks/enneper
 |------------------------------------------|------------------------------------------|
 | <img src="docs/catenoid.png" width="300"> | <img src="docs/enneper.png" width="300"> |
 
-Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(x)|$ at that surface point $x$:
+Here are some interactive plots of the resulting surfaces using different optimizers. The surface colors indicate the value of $|\kappa_H(x)|$ at that surface point $x$:
 - Catenoid: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_gn.html)
 - Enneper Surface: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_gn.html)

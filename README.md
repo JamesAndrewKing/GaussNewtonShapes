@@ -48,11 +48,10 @@ A minimal surface is known to have zero mean-curvature $\kappa_H$ everywhere.
 
 With [notebooks/catenoid.ipynb](notebooks/catenoid.ipynb) and [notebooks/enneper.ipynb](notebooks/enneper.ipynb) you can train a GINN to learn the Catenoid and the Enneper minimal surfaces.
 
-Catenoid (grey), $\Gamma$ (green):
-<img src="docs/catenoid.png" width="300"/>
-Enneper Surface (grey), $\Gamma$ (green):
-<img src="docs/enneper.png" width="300"/>
+| Catenoid (grey), $\Gamma$ (green):       | Enneper Surface (grey), $\Gamma$ (green): |
+|------------------------------------------|------------------------------------------|
+| <img src="docs/catenoid.png" width="300"> | <img src="docs/enneper.png" width="300"> |
 
-Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(\bold{x})|$ at that surface point:
+Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(x)|$ at that surface point $x$:
 - Catenoid: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_gn.html)
 - Enneper Surface: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_gn.html)

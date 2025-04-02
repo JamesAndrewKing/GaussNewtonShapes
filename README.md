@@ -20,37 +20,27 @@ Minimal surface experiments in notebooks, rest of my code in external->precondit
 
 ```
 /
-├── run.py                          # Entry point for the program
-├── train/                          # Functionality for training
-│   └── ginn_trainer.ipynb          # Handles the training loop of the network
-├── configs/                        # Contains YML files to configure
-├── GINN/                           # folder for GINN training
-│   ├── data/                       # Dataloader for a setting of GINNs with data
-│   ├── evaluation/                 # Code to compute metrics of generated 2D and 3D shapes
+├── notebooks                       # Entry point for the program
+│   ├── catenoid.ipynb              # Plateu's Problem for Catenoid
+│   └── enneper.ipynb               # Plateau's Problem for Enneper Surface
+├── training/                       # Functionality for training
+│   ├── optimizers.py               # 
+│   └── gram_factory.py             # 
+├── GINN/                           # Code from GINN for sampling and PH
 │   ├── ph/                         # Classes to manage the connectedness loss based on persistent homology
-│   ├── plot/                       # Plotters for 2D and 3D
-│   ├── problems/                   # Contains general geometric primitives
-│   ├── simJEB/                     # Contains files to load the simjeb envelope and interface
 │   ├── speed/                      # Contains classes useful for multiprocessing or measuring time
-├── models/                         # Model definitions for different architectures
+├── models/                         # Model definition
+│   └── model_architecture.py       # 
 ├── util/                           # Utilities used throughout the project
+│   ├── surface_sampling.py         #
+│   └── error_metrics.py            # 
+
 ```
 
 ## Get started
 
 Install the dependencies, ideally in a fresh environment
 ```pip install -r requirements.txt```
-
-
-### Jet engine bracket
-
-The problem described in Section 4.3. The problem specification draws inspiration from an engineering design competition hosted by General Electric and GrabCAD ([paper](https://arxiv.org/abs/2105.03534v1), [website](https://simjeb.github.io/)). The challenge was to design the lightest possible lifting bracket for a jet engine subject to both physical and geometrical constraints. Here, we focus only on the geometric constraints: the shape must fit in a provided design space and attach to six cylindrical interfaces. In addition, we require connectedness as a trivial requirement for structural integrity and a smooth surface.
-
-<img src="media/jeb_training.gif" width="600"/>
-
-Start the training by specifying a config from the `configs` folder.
-
-```python run.py gpu_list=0 yml=simjeb_wire_singleshape```
 
 
 ### Minimal surface

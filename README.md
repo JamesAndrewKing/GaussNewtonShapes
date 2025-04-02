@@ -45,11 +45,14 @@ Install the dependencies, ideally in a fresh environment
 
 ### Minimal surface
 
-[View Interactive Plot](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html)
-
-Plateau’s problem is to find the surface $S$ with the minimal area given a prescribed boundary $\Gamma$ (a closed curve in $X \in \mathbb{R}$).
+Plateau’s problem is to find the surface $S$ with the minimal area given a prescribed boundary $\Gamma$.
 A minimal surface is known to have zero mean-curvature $\kappa_H$ everywhere.
 
-With [notebooks/min_surf.ipynb](notebooks/minimal_surface.ipynb) you can train a GINN to learn the minimal surface. It takes a few seconds to converge. This code does not use the more advanced adaptive augmented Lagrangian method for constrained optimization.
+With [notebooks/catenoid.ipynb](notebooks/catenoid.ipynb) and [notebooks/enneper.ipynb](notebooks/enneper.ipynb) you can train a GINN to learn the Catenoid and the Enneper minimal surfaces.
 
-<img src="media/minsurf.png" width="300"/>
+<img src="docs/catenoid.png" width="300"/>
+<img src="docs/enneper.png" width="300"/>
+
+Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(\vect{x})|$ at that surface point:
+- Catenoid: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_gn.html)
+- Enneper Surface: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_gn.html)

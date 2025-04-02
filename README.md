@@ -13,8 +13,6 @@ GINNs not only learn to generate multiple diverse solutions, but can also learn 
 
 This is the code used in my Master's Thesis where I train Implicit Neural Shapes to solve Plateu's Problem using only constraints. The project is forked from (https://arturs-berzins.github.io/GINN/) and builds upon their minimal surface experiment by implementing Gauss-Newton Natural Gradient Descent.
 
-Minimal surface experiments in notebooks, rest of my code in external->preconditioning
-
 !!Under Construction!!
 ## Organization
 
@@ -50,9 +48,11 @@ A minimal surface is known to have zero mean-curvature $\kappa_H$ everywhere.
 
 With [notebooks/catenoid.ipynb](notebooks/catenoid.ipynb) and [notebooks/enneper.ipynb](notebooks/enneper.ipynb) you can train a GINN to learn the Catenoid and the Enneper minimal surfaces.
 
+Catenoid (grey), $\Gamma$ (green):
 <img src="docs/catenoid.png" width="300"/>
+Enneper Surface (grey), $\Gamma$ (green):
 <img src="docs/enneper.png" width="300"/>
 
-Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(\vect{x})|$ at that surface point:
+Here are some interactive plots of the resulting surfaces using different optimizers. The colours on the surface indicate the value of $|\kappa_H(\bold{x})|$ at that surface point:
 - Catenoid: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_catenoid_gn.html)
 - Enneper Surface: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_gn.html)

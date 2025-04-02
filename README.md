@@ -45,6 +45,8 @@ Install the dependencies, ideally in a fresh environment
 
 ### Minimal surface
 
+[View Interactive Plot](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_heatmap_enneper_adam.html)
+
 Plateau’s problem is to find the surface $S$ with the minimal area given a prescribed boundary $\Gamma$ (a closed curve in $X \in \mathbb{R}$).
 A minimal surface is known to have zero mean-curvature $\kappa_H$ everywhere.
 

@@ -2,7 +2,8 @@
 
 > **Note**: This repository is currently under active development.
 
-This repository contains the code for my Master's Thesis, where I train Implicit Neural Shapes to solve Plateau's Problem using only constraints. The project extends the [original GINN work](https://arturs-berzins.github.io/GINN/) by implementing Gauss-Newton Natural Gradient Descent for minimal surface experiments.
+This repository contains the code for my Master's Thesis, where I train Implicit Neural Shapes to solve Plateau's Problem using only constraints. The project extends the [original GINN work](https://arturs-berzins.github.io/GINN/) by implementing [Gauss-Newton Natural Gradient Descent](
+https://doi.org/10.48550/arXiv.2402.10680) for minimal surface experiments.
 
 ## Key Features
 - Solves Plateau's problem (minimal surfaces) without training data
@@ -34,10 +35,13 @@ This repository contains the code for my Master's Thesis, where I train Implicit
 ## Get started
 
 Install the dependencies, ideally in a fresh environment
-```pip install -r requirements.txt```
+
+```pip install -r requirements.txt``` or 
+```conda env create -f requirements.yml```
 
 Run the example notebooks
-```jupyter notebook notebooks/catenoid.ipynb```
+
+```jupyter notebook notebooks/catenoid.ipynb``` or
 ```jupyter notebook notebooks/enneper.ipynb```
 
 

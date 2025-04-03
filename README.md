@@ -3,11 +3,11 @@
 > **Note**: This repository is currently under active development.
 
 This repository contains the code for my Master's Thesis, where I train Implicit Neural Shapes to solve Plateau's Problem using only constraints. The project extends the [original GINN work](https://arturs-berzins.github.io/GINN/) by implementing [Gauss-Newton Natural Gradient Descent](
-https://doi.org/10.48550/arXiv.2402.10680) for minimal surface experiments.
+https://doi.org/10.48550/arXiv.2402.10680) for the minimal surface experiments.
 
 ## Key Features
-- Solves Plateau's problem (minimal surfaces) without training data
-- Implements constraint-based learning with GINNs
+- Solves Plateau's Problem without training data
+- Implements constraint-driven learning with GINNs
 - Features Gauss-Newton optimization alongside traditional methods
 - Generates interactive visualizations of results
 
@@ -36,8 +36,7 @@ https://doi.org/10.48550/arXiv.2402.10680) for minimal surface experiments.
 
 Install the dependencies, ideally in a fresh environment
 
-```pip install -r requirements.txt``` or 
-```conda env create -f requirements.yml```
+```pip install -r requirements.txt```
 
 Run the example notebooks
 
@@ -45,7 +44,7 @@ Run the example notebooks
 ```jupyter notebook notebooks/enneper.ipynb```
 
 
-### Minimal surface
+### Minimal surfaces
 
 Plateau’s problem is to find the surface $S$ with the minimal area given a prescribed boundary $\Gamma$.
 A minimal surface is known to have zero mean-curvature $\kappa_H$ everywhere.

@@ -95,7 +95,7 @@ def compute_jacobian_and_residual(model, config):
 
     return J.detach(), r.detach()
 
-
+@torch.no_grad()
 def compute_residual(model, config):
     def flatten_grad_dict(grad_dict):
         return torch.cat([p.flatten(start_dim=1) for p in grad_dict.values()], dim=1)
@@ -137,6 +137,7 @@ def compute_residual(model, config):
 
     return r.detach()
 
+@torch.no_grad()
 def compute_JTJ(model, config):
     def flatten_layer_grads(grad_dict, layer_name):
         # Dynamically extract keys corresponding to the given layer
@@ -191,7 +192,7 @@ def compute_JTJ(model, config):
 
     return JTJ_sum
 
-
+@torch.no_grad()
 def compute_Jv(model, config, v):
     def flatten_layer_grads(grad_dict, layer_name):
         # Dynamically extract keys corresponding to the given layer

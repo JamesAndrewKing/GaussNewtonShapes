@@ -30,8 +30,8 @@ def sample_model_surface_binsearch(model, pts_boundary, bound_limit=1.0):
     netp = NetWithPartials.create_from_model(model=model, nz=0, nx=3)
     # bounds = torch.tensor([[-2,2], [-2,2], [-2,2]], dtype=torch.float64)
     bounds = torch.tensor([[-bound_limit,bound_limit], [-bound_limit,bound_limit], [-bound_limit,bound_limit]], dtype=torch.float64)
-    #grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(10000, bounds, equidistant=True)
-    grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(5000, bounds, equidistant=True)
+    grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(10000, bounds, equidistant=True)
+    # grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(5000, bounds, equidistant=True)
     success, (p_surface, y_sel) = find_boundary_points_numerically_with_binsearch(
         netp=netp, 
         z=torch.zeros([1,0], dtype=torch.float64),

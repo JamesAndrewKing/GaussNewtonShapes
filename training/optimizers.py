@@ -110,15 +110,17 @@ class GaussNewton:
 #         vector_to_parameters(theta, self.params)
 
 class GaussNewtonNew:
-    def __init__(self, model, lr, config):
+    def __init__(self, model, config, lr=0.1, do_line_search=True, line_search_steps=15, do_woodbury=False):
         self.model = model
         self.params_dict = dict(model.named_parameters())
         self.params = list(model.parameters())
         self.lr = lr
         self.t = 0
         self.config = config
-        self.do_line_search = True
-        self.line_search_steps = 10
+        self.do_line_search = do_line_search
+        self.line_search_steps = line_search_steps
+        self.do_woodbury = do_woodbury
+        self.loss = 1e5
 
     def zero_grad(self):
         for p in self.params:
@@ -133,58 +135,7 @@ class GaussNewtonNew:
         x, _, _, _ = torch.linalg.lstsq(A.double(), grad.double(), driver="gels")
         return x
 
-    @torch.no_grad()
-    def step(self):
-        self.t += 1
-        update = self.calculate_update()
-    
-        theta_orig = parameters_to_vector(self.params)
-    
-        if self.do_line_search:
-            best_loss = float('inf')
-            best_theta = theta_orig
-            best_lr = self.lr
-    
-            lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype, device=theta_orig.device)
-    
-            for lr in lrs:
-                theta_try = theta_orig - lr * update
-                vector_to_parameters(theta_try, self.params)
-    
-                residual = compute_residual(self.model, self.config)
-                loss = torch.sum(residual.square()).item()
-    
-                if loss < best_loss:
-                    best_loss = loss
-                    best_theta = theta_try
-                    best_lr = lr
-    
-            vector_to_parameters(best_theta, self.params)
-            self.lr = best_lr
-    
-        else:
-            # Single update step without line search
-            theta_new = theta_orig - self.lr * update
-            vector_to_parameters(theta_new, self.params)
-
-
-class GaussNewtonWoodburyBig:
-    def __init__(self, model, lr, config):
-        self.model = model
-        self.params_dict = dict(model.named_parameters())
-        self.params = list(model.parameters())
-        self.lr = lr
-        self.t = 0
-        self.config = config
-        self.do_line_search = True
-        self.line_search_steps = 10
-
-    def zero_grad(self):
-        for p in self.params:
-            if p.grad is not None:
-                p.grad.zero_()
-
-    def calculate_update(self):
+    def calculate_update_woodbury(self):
         r = compute_residual(self.model, self.config)
         eps = self.config.get("regularization", 0.0)
         A = compute_JTJ(self.model, self.config) + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
@@ -194,7 +145,11 @@ class GaussNewtonWoodburyBig:
     @torch.no_grad()
     def step(self):
         self.t += 1
-        update = self.calculate_update()
+
+        if not self.do_woodbury:
+            update = self.calculate_update()
+        else:
+            update = self.calculate_update_woodbury()
     
         theta_orig = parameters_to_vector(self.params)
     
@@ -203,7 +158,7 @@ class GaussNewtonWoodburyBig:
             best_theta = theta_orig
             best_lr = self.lr
     
-            lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype, device=theta_orig.device)
+            lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype)
     
             for lr in lrs:
                 theta_try = theta_orig - lr * update
@@ -214,6 +169,7 @@ class GaussNewtonWoodburyBig:
     
                 if loss < best_loss:
                     best_loss = loss
+                    self.loss = best_loss
                     best_theta = theta_try
                     best_lr = lr
     
@@ -224,5 +180,63 @@ class GaussNewtonWoodburyBig:
             # Single update step without line search
             theta_new = theta_orig - self.lr * update
             vector_to_parameters(theta_new, self.params)
+
+
+# class GaussNewtonWoodburyBig:
+#     def __init__(self, model, lr, config):
+#         self.model = model
+#         self.params_dict = dict(model.named_parameters())
+#         self.params = list(model.parameters())
+#         self.lr = lr
+#         self.t = 0
+#         self.config = config
+#         self.do_line_search = True
+#         self.line_search_steps = 10
+
+#     def zero_grad(self):
+#         for p in self.params:
+#             if p.grad is not None:
+#                 p.grad.zero_()
+
+#     def calculate_update(self):
+#         r = compute_residual(self.model, self.config)
+#         eps = self.config.get("regularization", 0.0)
+#         A = compute_JTJ(self.model, self.config) + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
+#         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
+#         return compute_Jv(self.model, self.config, x)
+
+#     @torch.no_grad()
+#     def step(self):
+#         self.t += 1
+#         update = self.calculate_update()
+    
+#         theta_orig = parameters_to_vector(self.params)
+    
+#         if self.do_line_search:
+#             best_loss = float('inf')
+#             best_theta = theta_orig
+#             best_lr = self.lr
+    
+#             lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype, device=theta_orig.device)
+    
+#             for lr in lrs:
+#                 theta_try = theta_orig - lr * update
+#                 vector_to_parameters(theta_try, self.params)
+    
+#                 residual = compute_residual(self.model, self.config)
+#                 loss = torch.sum(residual.square()).item()
+    
+#                 if loss < best_loss:
+#                     best_loss = loss
+#                     best_theta = theta_try
+#                     best_lr = lr
+    
+#             vector_to_parameters(best_theta, self.params)
+#             self.lr = best_lr
+    
+#         else:
+#             # Single update step without line search
+#             theta_new = theta_orig - self.lr * update
+#             vector_to_parameters(theta_new, self.params)
             
         

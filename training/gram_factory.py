@@ -363,9 +363,7 @@ def compute_JTJ(model, config):
 
             # Concatenate all blocks of J for the current layer and compute JTJ
             J = torch.cat(J_blocks, dim=0).T
-            JTJ_layer = J.T @ J
-
-            JTJ_sum += JTJ_layer
+            JTJ_sum += J.T @ J
 
     return JTJ_sum
 

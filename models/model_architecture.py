@@ -98,35 +98,94 @@ class GeneralNet(nn.Module):
     #     """Vectorized gradient of f with respect to parameters theta."""
     #     return vmap(self._grad_theta_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
-# The network I'm using for everything else, TODO: merge into one, have losses as seperate functions, not model attributes
-class PlaceholderNet(nn.Module):
-    def __init__(self, ks, act=torch.tanh):
-        super(PlaceholderNet, self).__init__()
-        self.ks = ks
-        self.fcs = nn.ModuleList([
-            nn.Linear(in_features, out_features, dtype=torch.float64)
-            for in_features, out_features in zip(self.ks[:-1], self.ks[1:])
-        ])
-        self.apply(self.init_weights)
-        self.D = len(self.fcs)
-        self.act = act
+
+class RealGaborLayer(nn.Module):
+    '''
+        Implicit representation with Gabor nonlinearity
+        
+        Inputs;
+            in_features: Input features
+            out_features; Output features
+            bias: if True, enable bias for the linear operation
+            is_first: Legacy SIREN parameter
+            omega_0: Legacy SIREN parameter
+            omega: Frequency of Gabor sinusoid term
+            scale: Scaling of Gabor Gaussian term
+    '''
+    
+    def __init__(self, in_features, out_features, bias=True,
+                 is_first=False, omega0=10.0, sigma0=10.0,
+                 trainable=False):
+        super().__init__()
+        self.omega_0 = omega0
+        self.scale_0 = sigma0
+        self.is_first = is_first
+        
+        self.in_features = in_features
+        
+        # self.freqs = nn.Linear(in_features, out_features, bias=bias)
+        # self.scale = nn.Linear(in_features, out_features, bias=bias)
+        self.freq_scale = nn.Linear(in_features, 2*out_features, bias=bias)
+        
+    def forward(self, input):
+        # omega = self.omega_0 * self.freqs(input)
+        # scale = self.scale(input) * self.scale_0
+        # return torch.cos(omega)*torch.exp(-(scale**2))
+        omega, scale = torch.chunk(self.freq_scale(input), 2, dim=-1)
+        return torch.cos(self.omega_0 * omega)*torch.exp(-(self.scale_0 * scale**2))
+
+
+class WIRE(nn.Module):
+    def __init__(self, 
+                 layers,
+                 first_omega_0=18, 
+                 hidden_omega_0=18.,
+                 scale=6.0,
+                 **kwargs):
+        super().__init__()
+        # self.ks = ks
+        # self.fcs = nn.ModuleList([
+        #     nn.Linear(in_features, out_features, dtype=torch.float64)
+        #     for in_features, out_features in zip(self.ks[:-1], self.ks[1:])
+        # ])
+        # self.apply(self.init_weights)
+        # self.D = len(self.fcs)
+        # self.act = act
+        # self.params = dict(self.named_parameters())
+
+        self.layers = layers
+        self.first_omega_0 = first_omega_0
+        self.hidden_omega_0 = hidden_omega_0
+        self.scale = scale
+        self.nonlin = RealGaborLayer
+        
+        self.net = []
+        self.net.append(self.nonlin(layers[0],
+                                    layers[1], 
+                                    omega0=first_omega_0,
+                                    sigma0=scale,
+                                    is_first=True,
+                                    trainable=False))
+
+        for i in range(1, len(layers) - 2):
+            self.net.append(self.nonlin(layers[i],
+                                        layers[i+1], 
+                                        omega0=hidden_omega_0,
+                                        sigma0=scale))
+
+        final_linear = nn.Linear(layers[-2],
+                                 layers[-1])
+        self.net.append(final_linear)
+        self.net = nn.Sequential(*self.net)
         self.params = dict(self.named_parameters())
         self.num_params = sum(p.numel() for p in self.parameters())
-
-    def init_weights(self, m):
-        """Initialize weights using Xavier initialization."""
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_uniform_(m.weight)  # Xavier initialization for weights
-            if m.bias is not None:
-                nn.init.zeros_(m.bias)  # Initialize biases to zero
-
+    
     def forward(self, x, z=None):
+        # convert to the right data type
         if z is not None:
-            x = torch.cat([x, z], dim=-1).to(dtype=torch.float64)
-        x = self.fcs[0](x)
-        for i in range(2, self.D + 1):
-            x = self.fcs[i - 1](self.act(x))
-        return x
+            x = torch.cat([x, z], dim=-1)
+        output = self.net(x.to(dtype=torch.float64))
+        return output
 
     def f(self, params, x):
         """Wrapper for functional_call."""

@@ -24,11 +24,9 @@ class GaussNewton:
         # 1. Flatten all gradients into a single vector.
         grads = [p.grad for p in self.params if p.grad is not None]
         flat_grads = parameters_to_vector(grads)
-        # N = flat_grads.numel()
-        N = self.model.num_params
+        N = flat_grads.numel()
         eps = self.config.get("regularization")
-        # A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
-        A = compute_JJT(self.model, self.config) + eps*torch.eye(N)
+        A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")
@@ -49,66 +47,6 @@ class GaussNewton:
                 continue
 
             param.data -= self.lr * param.grad
-
-
-# class GaussNewtonWoodbury:
-#     def __init__(self, model, lr, config):
-#         self.model = model
-#         self.params_dict = dict(model.named_parameters())
-#         self.params = list(model.parameters())
-#         self.lr = lr
-#         self.t = 0
-#         self.config = config
-
-#     def zero_grad(self):
-#         for p in self.params:
-#             if p.grad is not None:
-#                 p.grad.zero_()
-
-#     def calculate_update(self):
-#         J, r = compute_jacobian_and_residual(self.model, self.config)
-#         eps = self.config.get("regularization")
-#         A = J.T @ J + eps*torch.eye(r.shape[0])
-#         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
-#         return J@x
-
-#     @torch.no_grad()
-#     def step(self):
-#         self.t += 1
-
-#         theta = parameters_to_vector(self.params)
-#         theta -= self.lr * self.calculate_update()
-#         vector_to_parameters(theta, self.params)
-
-
-# class GaussNewtonWoodburyBig:
-#     def __init__(self, model, lr, config):
-#         self.model = model
-#         self.params_dict = dict(model.named_parameters())
-#         self.params = list(model.parameters())
-#         self.lr = lr
-#         self.t = 0
-#         self.config = config
-
-#     def zero_grad(self):
-#         for p in self.params:
-#             if p.grad is not None:
-#                 p.grad.zero_()
-
-#     def calculate_update(self):
-#         r = compute_residual(self.model, self.config)
-#         eps = self.config.get("regularization")
-#         A = compute_JTJ(self.model, self.config) + eps*torch.eye(r.shape[0])
-#         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
-#         return compute_Jv(self.model, self.config, x) 
-
-#     @torch.no_grad()
-#     def step(self):
-#         self.t += 1
-
-#         theta = parameters_to_vector(self.params)
-#         theta -= self.lr * self.calculate_update()
-#         vector_to_parameters(theta, self.params)
 
 class GaussNewtonNew:
     def __init__(self, model, config, lr=0.1, do_line_search=True, line_search_steps=15, do_woodbury=False):

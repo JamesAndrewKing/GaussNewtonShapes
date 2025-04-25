@@ -28,7 +28,6 @@ class GeneralNet(nn.Module):
         self.D = len(self.fcs)
         self.act = act
         self.params = dict(self.named_parameters())
-        self.num_params = sum(p.numel() for p in self.parameters())
 
     def forward(self, x, z=None):
         if z is not None:
@@ -162,26 +161,26 @@ class PlaceholderNet(nn.Module):
         return vmap(self._hess_x_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
 
 
-    # def _r_normal(self, params, x, target_normal):
-    #     # grad_f = self._grad_x_f(params, x).squeeze(1)  # Shape: (3,)
-    #     # norm_grad_f = grad_f.norm(p=2)
-    #     # model_normal = grad_f / norm_grad_f
-    #     # return (model_normal - target_normal).norm(p=2).unsqueeze(-1)
-    #     # This normal loss seems to work better:
-    #     grad_f = self._grad_x_f(params, x).squeeze(1)  # Shape: (3,)
-    #     norm_grad_f = grad_f.norm(p=2)
-    #     model_normal = grad_f / norm_grad_f
-    #     # return (model_normal.squeeze(0).T @ target_normal -1).unsqueeze(-1)
-    #     return (torch.dot(model_normal.squeeze(0), target_normal)-1).unsqueeze(-1)
+    def _r_normal(self, params, x, target_normal):
+        # grad_f = self._grad_x_f(params, x).squeeze(1)  # Shape: (3,)
+        # norm_grad_f = grad_f.norm(p=2)
+        # model_normal = grad_f / norm_grad_f
+        # return (model_normal - target_normal).norm(p=2).unsqueeze(-1)
+        # This normal loss seems to work better:
+        grad_f = self._grad_x_f(params, x).squeeze(1)  # Shape: (3,)
+        norm_grad_f = grad_f.norm(p=2)
+        model_normal = grad_f / norm_grad_f
+        # return (model_normal.squeeze(0).T @ target_normal -1).unsqueeze(-1)
+        return (torch.dot(model_normal.squeeze(0), target_normal)-1).unsqueeze(-1)
 
-    # def r_normal(self, params, x, target_normal):
-    #     return vmap(self._r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
+    def r_normal(self, params, x, target_normal):
+        return vmap(self._r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
 
-    # def _grad_theta_r_normal(self, params, x, target_normal):
-    #     return jacrev(self._r_normal, argnums=0)(params, x.to(dtype=torch.float64), target_normal)
+    def _grad_theta_r_normal(self, params, x, target_normal):
+        return jacrev(self._r_normal, argnums=0)(params, x.to(dtype=torch.float64), target_normal)
 
-    # def grad_theta_r_normal(self, params, x, target_normal):
-    #     return vmap(self._grad_theta_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
+    def grad_theta_r_normal(self, params, x, target_normal):
+        return vmap(self._grad_theta_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
 
     # def _r_laplacian(self, params, x):
     #     hess_f = self._hess_x_f(params, x).squeeze(1)
@@ -218,23 +217,23 @@ class PlaceholderNet(nn.Module):
     def grad_theta_r_mean_curvature(self, params, x, target):
         return vmap(self._grad_theta_r_mean_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
     
-    # def _r_gauss_curvature(self, params, x, target):
-    #     grad_f = self._grad_x_f(params, x).squeeze(1)
-    #     hess_f = self._hess_x_f(params, x).squeeze(1)
-    #     adj_hess_f = adjugate_3x3(hess_f)
-    #     grad_adj_grad = torch.einsum('bi,bij,bj->b', grad_f, adj_hess_f, grad_f)
-    #     norm_grad_f = grad_f.square().sum(1).sqrt()
-    #     gauss_curvature = grad_adj_grad / norm_grad_f.pow(4)
-    #     return gauss_curvature - target
+    def _r_gauss_curvature(self, params, x, target):
+        grad_f = self._grad_x_f(params, x).squeeze(1)
+        hess_f = self._hess_x_f(params, x).squeeze(1)
+        adj_hess_f = adjugate_3x3(hess_f)
+        grad_adj_grad = torch.einsum('bi,bij,bj->b', grad_f, adj_hess_f, grad_f)
+        norm_grad_f = grad_f.square().sum(1).sqrt()
+        gauss_curvature = grad_adj_grad / norm_grad_f.pow(4)
+        return gauss_curvature - target
 
-    # def r_gauss_curvature(self, params, x, target):
-    #     return vmap(self._r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+    def r_gauss_curvature(self, params, x, target):
+        return vmap(self._r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
     
-    # def _grad_theta_r_gauss_curvature(self, params, x, target):
-    #     return jacrev(self._r_gauss_curvature, argnums=0)(params, x.to(dtype=torch.float64), target)
+    def _grad_theta_r_gauss_curvature(self, params, x, target):
+        return jacrev(self._r_gauss_curvature, argnums=0)(params, x.to(dtype=torch.float64), target)
 
-    # def grad_theta_r_gauss_curvature(self, params, x, target):
-    #     return vmap(self._grad_theta_r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+    def grad_theta_r_gauss_curvature(self, params, x, target):
+        return vmap(self._grad_theta_r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
 
     # def _r_principle_curvature_1(self, params, x):
     #     k_m = self._r_mean_curvature(params, x, 0)

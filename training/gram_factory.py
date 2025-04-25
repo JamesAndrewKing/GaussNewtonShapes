@@ -19,12 +19,6 @@ def calculate_A_mean_curvature(model, pts):
     dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
     A_mean_curvature = torch.einsum('bi,bj->ij', dr, dr) / len(pts)
     return A_mean_curvature
-
-def calculate_A_laplacian(model, pts):
-    dr_dict = model.grad_theta_r_laplacian(model.params, pts)
-    dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-    A_laplacian = torch.einsum('bi,bj->ij', dr, dr) / len(pts)
-    return A_laplacian
     
 
 def compute_gram_matrix(model, config):
@@ -33,19 +27,13 @@ def compute_gram_matrix(model, config):
     pts_surface = config.get("pts_surface")
     loss_weights = config.get("loss_weights")
 
-    A = torch.zeros((model.num_params, model.num_params), dtype=torch.float64)
-
-    if loss_weights.get("interface", 0) != 0:
-        A += loss_weights["interface"] * calculate_A_interface(model, pts_boundary)
+    A = loss_weights["interface"] * calculate_A_interface(model, pts_boundary)
     
     if loss_weights.get("eikonal", 0) != 0:
         A += loss_weights["eikonal"] * calculate_A_eikonal(model, pts_eikonal)
     
     if loss_weights.get("mean_curvature", 0) != 0:
         A += loss_weights["mean_curvature"] * calculate_A_mean_curvature(model, pts_surface)
-
-    if loss_weights.get("laplacian", 0) != 0:
-        A += loss_weights["laplacian"] * calculate_A_laplacian(model, pts_surface)
 
     return A.detach()
 

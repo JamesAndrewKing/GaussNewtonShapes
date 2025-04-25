@@ -1,11 +1,23 @@
-cripser==0.0.15
-torch==2.3.1
-torchvision==0.18.1
-torchaudio==2.3.1
-matplotlib==3.9.0
-scikit-image==0.23.2
-einops==0.8.0
-wandb==0.17.1
-tqdm==4.66.4
+# cripser==0.0.15
+# torch==2.3.1
+# torchvision==0.18.1
+# torchaudio==2.3.1
+# matplotlib==3.9.0
+# scikit-image==0.23.2
+# einops==0.8.0
+# wandb==0.17.1
+# tqdm==4.66.4
+# k3d==2.16.1
+# trimesh[easy]==4.5.3
+
+numpy==2.2.3
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+matplotlib==3.10.1
+tqdm==4.67.1
 k3d==2.16.1
-trimesh[easy]==4.5.3
+einops==0.8.1
+wandb==0.17.1
+scikit-image==0.25.2
+trimesh[easy]==4.6.6

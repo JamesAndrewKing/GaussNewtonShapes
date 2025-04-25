@@ -1,3 +1,4 @@
+"""Part of Arturs' isochrone code"""
 '''Make gradients into a module.'''
 
 import torch

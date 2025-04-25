@@ -1,3 +1,4 @@
+"""Part of Arturs' isochrone code"""
 '''Helper functions'''
 import torch
 from time import time

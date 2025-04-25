@@ -224,7 +224,7 @@ def compute_residual(model, config):
     if "pts_surface" in config and loss_weights.get("mean_curvature", 0.0) > 0:
         pts = config["pts_surface"]
         N = pts.shape[0]
-        vals = config["vals_mean_curvature"]
+        vals = config.get("vals_mean_curvature", torch.zeros(N, dtype=torch.float64))
         r = model.r_mean_curvature(params, pts, vals).squeeze(1)
         r_blocks.append(
             np.sqrt(loss_weights["mean_curvature"] / N) * r
@@ -332,8 +332,8 @@ def compute_JTJ(model, config):
             # Mean Curvature
             if "pts_surface" in config and loss_weights.get("mean_curvature", 0.0) > 0:
                 pts = config["pts_surface"]
-                vals = config["vals_mean_curvature"]
                 N = pts.shape[0]
+                vals = config.get("vals_mean_curvature", torch.zeros(N, dtype=torch.float64))
                 dr = flatten_layer_grads(model.grad_theta_r_mean_curvature(layer_params, pts, vals), layer_name)
                 J_blocks.append(np.sqrt(loss_weights["mean_curvature"] / N) * dr)
 
@@ -409,7 +409,7 @@ def compute_JJT(model, config):
     # Mean Curvature loss
     if "pts_surface" in config and loss_weights.get("mean_curvature", 0.0) > 0:
         pts = config["pts_surface"]
-        vals = config["vals_mean_curvature"]
+        vals = config.get("vals_mean_curvature", torch.zeros(pts.shape[0], dtype=torch.float64))
         dr_dict = model.grad_theta_r_mean_curvature(model.params, pts, vals)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
         JJT_sum += loss_weights["mean_curvature"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
@@ -488,8 +488,8 @@ def compute_Jv(model, config, v):
             # Mean Curvature
             if "pts_surface" in config and loss_weights.get("mean_curvature", 0.0) > 0:
                 pts = config["pts_surface"]
-                vals = config["vals_mean_curvature"]
                 N = pts.shape[0]
+                vals = config.get("vals_mean_curvature", torch.zeros(N, dtype=torch.float64))  
                 grad = flatten_layer_grads(model.grad_theta_r_mean_curvature(layer_params, pts, vals), layer_name)
                 J_layer.append(np.sqrt(loss_weights["mean_curvature"] / N) * grad)
 

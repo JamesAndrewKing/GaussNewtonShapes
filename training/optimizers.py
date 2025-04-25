@@ -27,7 +27,8 @@ class GaussNewton:
         # N = flat_grads.numel()
         N = self.model.num_params
         eps = self.config.get("regularization")
-        A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
+        # A = compute_gram_matrix(self.model, self.config) + eps*torch.eye(N)
+        A = compute_JJT(self.model, self.config) + eps*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")

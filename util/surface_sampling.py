@@ -2,13 +2,15 @@ import torch
 from GINN.numerical_boundary import find_boundary_points_numerically_with_binsearch
 from models.net_w_partials import NetWithPartials
 from util.sample_utils import precompute_sample_grid
+from training.residuals import grad_x_f
 
 def sample_model_surface_newton(model, init_points, n_iter=10, newton_clip=0.15, tol=1e-8):
     for _ in range(n_iter):
         init_points.requires_grad_(True)
         f_val = model(init_points)
         # Compute gradient
-        grad_f = model.grad_x_f(model.params, init_points).squeeze(1)
+        # grad_f = model.grad_x_f(model.params, init_points).squeeze(1)
+        grad_f = grad_x_f(model.params, init_points).squeeze(1)
         # Avoid division by small gradients
         grad_norm_sq = torch.sum(grad_f**2, dim=1, keepdim=True)
         valid = grad_norm_sq.squeeze() > 1e-10

@@ -16,7 +16,9 @@ class GaussNewton:
         self.do_line_search = do_line_search
         self.line_search_steps = line_search_steps
         self.loss = 1e5
-
+        self.flat_update_direction = None
+    
+    @torch.no_grad()
     def zero_grad(self):
         for p in self.params_list:
             if p.grad is not None:
@@ -36,10 +38,13 @@ class GaussNewton:
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")
+        x = x.to(flat_grads.dtype)
+        self.flat_update_direction = x
 
         # 3. Unflatten x back into each parameter’s .grad
         vector_to_parameters(x, grads)
-
+    
+    @torch.no_grad()
     def step(self):
         """
         Perform a single Gauss-Newton update step on all parameters:
@@ -66,7 +71,9 @@ class GaussNewton:
             for lr in lrs:
                 for param in self.params_list:
                     if param.grad is not None:
-                        param.data -= lr * param.grad
+                        # param.data -= lr * param.grad
+                        param.add_(param.grad, alpha=-lr)
+                        
         
                 params_dict = dict(zip(self.params_dict.keys(), self.params_list))
                 new_loss = compute_loss(params_dict, self.config)
@@ -86,7 +93,41 @@ class GaussNewton:
             for param in self.params_list:
                 if param.grad is None:
                     continue
-                param.data -= self.lr * param.grad
+                # param.data -= self.lr * param.grad
+                param.add_(param.grad, alpha=-self.lr)
+
+
+        # if self.do_line_search:
+        #     # Save original parameters
+        #     theta_orig = parameters_to_vector(self.params_list)
+        #     best_loss = float('inf')
+        #     best_theta = theta_orig
+        #     best_lr = self.lr
+        
+        #     lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype)
+        #     param_keys = list(self.params_dict.keys())
+        #     for lr in lrs:
+        #         theta_try = theta_orig - lr * self.flat_update_direction
+        #         vector_to_parameters(theta_try, self.params_list)
+        
+        #         params_dict = dict(zip(param_keys, self.params_list))
+        #         loss = compute_loss(params_dict, self.config)
+        
+        #         if loss < best_loss:
+        #             best_loss = loss
+        #             best_theta = theta_try
+        #             best_lr = lr
+        
+        #     # Restore best found parameters
+        #     vector_to_parameters(best_theta, self.params_list)
+        #     self.lr = best_lr
+        
+        # else:
+        #     # Simple step
+        #     for param in self.params_list:
+        #         if param.grad is not None:
+        #             # param.data -= self.lr * param.grad
+        #             param.add_(param.grad, alpha=-self.lr)
 
 
 # This optimizer is slightly slower, but can handle big models using the Woodbury trick

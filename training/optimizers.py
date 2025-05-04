@@ -1,7 +1,6 @@
 import torch
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
-from training.gram_factory import compute_loss, compute_residual, compute_JTJ, compute_JJT, compute_Jv
-# from .gram_factory import compute_loss, compute_JJT
+from training.gram_factory import compute_loss, compute_residual, compute_JJT, compute_JTJ, compute_JTv
 
 
 # This optimizer uses faster jvps, but the Woodbury trick is not implemented
@@ -34,7 +33,7 @@ class GaussNewton:
         flat_grads = parameters_to_vector(grads)
         N = flat_grads.numel()
         eps = self.config.get("regularization")
-        A = compute_JJT(self.params_dict, self.config) + eps*torch.eye(N)
+        A = compute_JTJ(self.params_dict, self.config) + eps*torch.eye(N)
 
         # 2. Solve least squares: x = argmin_x ||A*x - grads||^2
         x, _, _, _ = torch.linalg.lstsq(A.double(), flat_grads.double(), driver="gels")
@@ -151,18 +150,18 @@ class GaussNewtonNew:
 
     def calculate_update(self):
         r = compute_residual(self.model, self.config)
-        grad = compute_Jv(self.model, self.config, r)
+        grad = compute_JTv(self.model, self.config, r)
         eps = self.config.get("regularization", 0.0)
-        A = compute_JJT(self.params_dict, self.config) + eps * torch.eye(grad.shape[0], dtype=grad.dtype)
+        A = compute_JTJ(self.params_dict, self.config) + eps * torch.eye(grad.shape[0], dtype=grad.dtype)
         x, _, _, _ = torch.linalg.lstsq(A.double(), grad.double(), driver="gels")
         return x
 
     def calculate_update_woodbury(self):
         r = compute_residual(self.model, self.config)
         eps = self.config.get("regularization", 0.0)
-        A = compute_JTJ(self.model, self.config) + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
+        A = compute_JJT(self.model, self.config) + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
-        return compute_Jv(self.model, self.config, x)
+        return compute_JTv(self.model, self.config, x)
 
     @torch.no_grad()
     def step(self):

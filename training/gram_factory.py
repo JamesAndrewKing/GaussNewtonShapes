@@ -6,31 +6,31 @@ from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.func import vmap, jacrev, grad
 # Calculate Gauss-Newton Gram Matrices
 
-def compute_JJT_per_residual(params, pts, grad_theta_r, vals=None):
+def compute_JTJ_per_residual(params, pts, grad_theta_r, vals=None):
     J_dict = grad_theta_r(params, pts, vals)
     J = torch.cat([p.flatten(start_dim=1) for p in J_dict.values()], dim=1)
-    JJT = torch.einsum('bi,bj->ij', J, J) / len(pts)
-    return JJT.detach()
+    JTJ = torch.einsum('bi,bj->ij', J, J) / len(pts)
+    return JTJ.detach()
     
 # Sadly, I need to go through these manually since they take in different points and hence the residual function cant be defined pointwise and then vmapped
 # If all of your residuals are computed on the same points, this can be done a lot simpler.
-def compute_JJT(params, config):
+def compute_JTJ(params, config):
     pts_data = config.get("pts_data")
     vals_data = config.get("vals_data", torch.zeros(pts_data.shape[0], dtype=pts_data.dtype))
     loss_weights = config.get("loss_weights")
 
-    JJT = loss_weights["data"] * compute_JJT_per_residual(params, pts_data, grad_theta_r_data, vals_data)
+    JTJ = loss_weights["data"] * compute_JTJ_per_residual(params, pts_data, grad_theta_r_data, vals_data)
     
     if loss_weights.get("eikonal", 0) != 0 and "pts_eikonal" in config:
         pts = config["pts_eikonal"]
-        JJT += loss_weights["eikonal"] * compute_JJT_per_residual(params, pts, grad_theta_r_eikonal)
+        JTJ += loss_weights["eikonal"] * compute_JTJ_per_residual(params, pts, grad_theta_r_eikonal)
 
     if "pts_surface" in config:
         pts = config["pts_surface"]
 
         if loss_weights.get("normal", 0) != 0:
             true_normals = config.get("true_normals")
-            JJT += loss_weights["normal"] * compute_JJT_per_residual(params, pts, grad_theta_r_normal, true_normals)
+            JTJ += loss_weights["normal"] * compute_JTJ_per_residual(params, pts, grad_theta_r_normal, true_normals)
 
         curvature_terms = {
             "laplacian": grad_theta_r_laplacian,
@@ -41,9 +41,9 @@ def compute_JJT(params, config):
         }
         for name, grad_fn in curvature_terms.items():
             if loss_weights.get(name, 0) != 0:
-                JJT += loss_weights[name] * compute_JJT_per_residual(params, pts, grad_fn)
+                JTJ += loss_weights[name] * compute_JTJ_per_residual(params, pts, grad_fn)
 
-    return JJT.detach()
+    return JTJ.detach()
 
 def compute_loss(params, config):
     pts_data = config.get("pts_data")
@@ -329,13 +329,13 @@ def compute_residual(model, config):
     r_blocks = []
 
     # Interface
-    if "pts_boundary" in config and loss_weights.get("interface", 0.0) > 0:
-        pts = config["pts_boundary"]
-        N = pts.shape[0]
-        r = model.f(params, pts).squeeze(1)
-        r_blocks.append(
-            np.sqrt(loss_weights["interface"] / N) * r
-        )
+    # if "pts_boundary" in config and loss_weights.get("interface", 0.0) > 0:
+    #     pts = config["pts_boundary"]
+    #     N = pts.shape[0]
+    #     r = model.f(params, pts).squeeze(1)
+    #     r_blocks.append(
+    #         np.sqrt(loss_weights["interface"] / N) * r
+    #     )
 
     # Data
     if "pts_data" in config and loss_weights.get("data", 0.0) > 0:
@@ -403,7 +403,7 @@ def compute_residual(model, config):
         r_blocks.append(
             np.sqrt(loss_weights["surface_strain"] / N) * r
         )
-        r = model.r_principle_curvature_2(params, pts).squeeze(1)
+        r = r_principle_curvature_2(params, pts).squeeze(1)
         r_blocks.append(
             np.sqrt(loss_weights["surface_strain"] / N) * r
         )
@@ -414,15 +414,15 @@ def compute_residual(model, config):
     return r.detach()
 
 @torch.no_grad()
-def compute_JTJ(model, config):
+def compute_JJT(model, config):
 
     loss_weights = config["loss_weights"]
     params = model.params
 
     # Calculate size of residual vector
     N = 0
-    if "pts_boundary" in config and loss_weights.get("interface", 0.0) > 0:
-        N += config["pts_boundary"].shape[0]
+    # if "pts_boundary" in config and loss_weights.get("interface", 0.0) > 0:
+    #     N += config["pts_boundary"].shape[0]
     if "pts_data" in config and loss_weights.get("data", 0.0) > 0:
         N += config["pts_data"].shape[0]
     if "pts_eikonal" in config and loss_weights.get("eikonal", 0.0) > 0:
@@ -438,7 +438,7 @@ def compute_JTJ(model, config):
     if "pts_surface" in config and loss_weights.get("surface_strain", 0.0) > 0:
         N += 2*config["pts_surface"].shape[0]
 
-    JTJ_sum = torch.zeros(N, N, dtype=torch.float64)  # Initialize an empty sum
+    JJT_sum = torch.zeros(N, N, dtype=torch.float64)  # Initialize an empty sum
 
     for layer_name in model.params:
         if 'weight' in layer_name or 'bias' in layer_name:
@@ -507,27 +507,27 @@ def compute_JTJ(model, config):
                 dr = flatten_layer_grads(grad_theta_r_principle_curvature_2(layer_params, pts), layer_name)
                 J_blocks.append(np.sqrt(loss_weights["surface_strain"] / N) * dr)
 
-            # Concatenate all blocks of J for the current layer and compute JTJ
-            J = torch.cat(J_blocks, dim=0).T
-            JTJ_sum += J.T @ J
+            # Concatenate all blocks of J for the current layer and compute JJT
+            J = torch.cat(J_blocks, dim=0)
+            JJT_sum += J @ J.T
 
-    return JTJ_sum
+    return JJT_sum
 
 
-def compute_JJT_old(model, config):
+def compute_JTJ_old(model, config):
 
     loss_weights = config["loss_weights"]
     params = model.params
 
-    # Initialize JJT as a zero matrix of size (params x params)
-    JJT_sum = torch.zeros(model.num_params, model.num_params, dtype=torch.float64)
+    # Initialize JTJ as a zero matrix of size (params x params)
+    JTJ_sum = torch.zeros(model.num_params, model.num_params, dtype=torch.float64)
 
     # Interface loss
     if "pts_boundary" in config and loss_weights.get("interface", 0.0) > 0:
         pts = config["pts_boundary"]
         dr_dict = model.grad_theta_f(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["interface"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["interface"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Data loss
     if "pts_data" in config and loss_weights.get("data", 0.0) > 0:
@@ -536,14 +536,14 @@ def compute_JJT_old(model, config):
         vals = config.get("vals_data", torch.zeros(N, dtype=pts.dtype))
         dr_dict = grad_theta_r_data(model.params, pts, vals)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["data"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["data"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Eikonal loss
     if "pts_eikonal" in config and loss_weights.get("eikonal", 0.0) > 0:
         pts = config["pts_eikonal"]
         dr_dict = grad_theta_r_eikonal(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["eikonal"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["eikonal"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Normal loss
     if "pts_surface" in config and loss_weights.get("normal", 0.0) > 0:
@@ -551,49 +551,49 @@ def compute_JJT_old(model, config):
         true_normals = config["true_normals"]
         dr_dict = grad_theta_r_normal(model.params, pts, true_normals)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["normal"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["normal"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Mean Curvature loss
     if "pts_surface" in config and loss_weights.get("mean_curvature", 0.0) > 0:
         pts = config["pts_surface"]
         dr_dict = grad_theta_r_mean_curvature(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["mean_curvature"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["mean_curvature"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Gauss Curvature loss
     if "pts_surface" in config and loss_weights.get("gauss_curvature", 0.0) > 0:
         pts = config["pts_surface"]
         dr_dict = grad_theta_r_gauss_curvature(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["gauss_curvature"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["gauss_curvature"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Laplacian loss
     if "pts_surface" in config and loss_weights.get("laplacian", 0.0) > 0:
         pts = config["pts_surface"]
         dr_dict = grad_theta_r_laplacian(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["laplacian"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["laplacian"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
     # Surface Strain loss
     if "pts_surface" in config and loss_weights.get("surface_strain", 0.0) > 0:
         pts = config["pts_surface"]
         dr_dict = grad_theta_r_principle_curvature_1(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["surface_strain"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["surface_strain"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
         dr_dict = grad_theta_r_principle_curvature_2(model.params, pts)
         dr = torch.cat([p.flatten(start_dim=1) for p in dr_dict.values()], dim=1)
-        JJT_sum += loss_weights["surface_strain"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
+        JTJ_sum += loss_weights["surface_strain"] * torch.einsum('bi,bj->ij', dr, dr) / len(pts)
 
-    return JJT_sum.detach()
+    return JTJ_sum.detach()
 
 
 @torch.no_grad()
-def compute_Jv(model, config, v):
+def compute_JTv(model, config, v):
     loss_weights = config["loss_weights"]
     params = model.params
 
     # Initialize the list to store the Jacobian-vector product per layer
-    Jv_blocks = []
+    JTv_blocks = []
 
     for layer_name in model.params:
         if 'weight' in layer_name or 'bias' in layer_name:
@@ -663,9 +663,9 @@ def compute_Jv(model, config, v):
                 J_layer.append(np.sqrt(loss_weights["surface_strain"] / N) * grad)
 
             # Append the Jacobian-vector products for the current layer
-            Jv_blocks.append(torch.cat(J_layer, dim=0).T@v)
+            JTv_blocks.append(torch.cat(J_layer, dim=0).T@v)
 
     # Stack all Jacobian-vector products across layers to form the final vector
-    Jv_result = torch.cat(Jv_blocks, dim=0)
+    JTv_result = torch.cat(JTv_blocks, dim=0)
 
-    return Jv_result
+    return JTv_result

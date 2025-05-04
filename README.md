@@ -1,13 +1,13 @@
-# Preconditioning for Geometry-informed Neural Networks (GINNs)
+# Gauss-Newton Natural Gradient Descent for Geometry-Informed Learning
 
 > **Note**: This repository is currently under active development.
 
-This repository contains the code for my Master's Thesis, where I train Implicit Neural Shapes to solve Plateau's Problem using only constraints. The project extends the [original GINN work](https://arturs-berzins.github.io/GINN/) by implementing [Gauss-Newton Natural Gradient Descent](
-https://doi.org/10.48550/arXiv.2402.10680) for the minimal surface experiments.
+This repository implements [Gauss-Newton Natural Gradient Descent](
+https://doi.org/10.48550/arXiv.2402.10680) for training **Implicit Neural Shapes** using geometric constraints. The method extends the [GINN framework](https://arturs-berzins.github.io/GINN/) and is evaluated across three key geometry-informed learning tasks: learning minimal surfaces (Plateau's Problem), learning developable surfaces, and training implicit neural surfaces (INSs) using ground truth surface data and normals.
 
 ## Key Features
-- Solves Plateau's Problem without training data
-- Implements constraint-driven learning with GINNs
+- Solves PDE-constrained shape problems without any training data
+- Implements constraint-driven learning with INSs
 - Features Gauss-Newton optimization alongside traditional methods
 - Generates interactive visualizations of results
 

@@ -71,7 +71,7 @@ Here are some interactive plots of the resulting surfaces using different optimi
 
 A Developable surface $S$ given a prescribed boundary $\Gamma$ has zero Gaussian-curvature $\kappa_G$ everywhere.
 
-With [notebooks/catenoid.ipynb](notebooks/cone.ipynb) you can train an model to learn the Cone via a level set representation.
+With [notebooks/cone.ipynb](notebooks/cone.ipynb) you can train an model to learn the Cone via a level set representation.
 
 | Cone (grey), $\Gamma$ (green):       |
 |------------------------------------------|
@@ -85,7 +85,7 @@ Here are some interactive plots of the resulting surfaces using different optimi
 
 Given ground truth surface points and normals of a surface $S$, we can recover a continuous representation of $S$ via the level set of our model.
 
-With [notebooks/catenoid.ipynb](notebooks/rockerarm.ipynb) and [notebooks/enneper.ipynb](notebooks/bunny.ipynb) you can train an model to learn the Rockerarm and the Stanford Bunny - two popular benchmark problems - via a level set representations.
+With [notebooks/rockerarm.ipynb](notebooks/rockerarm.ipynb) and [notebooks/bunny.ipynb](notebooks/bunny.ipynb) you can train an model to learn the Rockerarm and the Stanford Bunny - two popular benchmark problems - via a level set representations.
 
 | Rockerarm (grey) | Stanford Bunny (grey) |
 |------------------------------------------|------------------------------------------|

@@ -31,7 +31,7 @@ class GeneralNet(nn.Module):
 
     def forward(self, x, z=None):
         if z is not None:
-            x = torch.cat([x, z], dim=-1).to(dtype=torch.float64)
+            x = torch.cat([x, z], dim=-1)
         x = self.fcs[0](x)
         for i in range(2, self.D + 1):
             x = self.fcs[i - 1](self.act(x))
@@ -39,23 +39,23 @@ class GeneralNet(nn.Module):
 
     def f(self, params, x):
         """Wrapper for functional_call."""
-        return functional_call(self, params, x.to(dtype=torch.float64))
+        return functional_call(self, params, x)
 
     # def _grad_x_f(self, params, x):
     #     """Jacobian of f with respect to input x (non-vectorized, private)."""
-    #     return jacrev(self.f, argnums=1)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self.f, argnums=1)(params, x)
 
     # def grad_x_f(self, params, x):
     #     """Vectorized Jacobian of f with respect to input x."""
-    #     return vmap(self._grad_x_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_x_f, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _hess_x_f(self, params, x):
     #     """Hessian of f with respect to input x (non-vectorized, private)."""
-    #     return jacfwd(self._grad_x_f, argnums=1)(params, x.to(dtype=torch.float64))
+    #     return jacfwd(self._grad_x_f, argnums=1)(params, x)
 
     # def hess_x_f(self, params, x):
     #     """Vectorized Hessian of f with respect to input x."""
-    #     return vmap(self._hess_x_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._hess_x_f, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _r_mean_curvature(self, params, x):
     #     grad_f = self._grad_x_f(params, x).squeeze(1)
@@ -67,13 +67,13 @@ class GeneralNet(nn.Module):
     #     return mean_curvatures
 
     # def r_mean_curvature(self, params, x):
-    #     return vmap(self._r_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._r_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_r_mean_curvature(self, params, x):
-    #     return jacrev(self._r_mean_curvature, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self._r_mean_curvature, argnums=0)(params, x)
 
     # def grad_theta_r_mean_curvature(self, params, x):
-    #     return vmap(self._grad_theta_r_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_r_mean_curvature, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _r_eikonal(self, params, x):
     #     """Eikonal residual of f with respect to input x (non-vectorized, private)."""
@@ -81,22 +81,22 @@ class GeneralNet(nn.Module):
 
     # def r_eikonal(self, params, x):
     #     """Vectorized gradient of f with respect to parameters theta."""
-    #     return vmap(self._r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_r_eikonal(self, params, x):
-    #     return jacrev(self._r_eikonal, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self._r_eikonal, argnums=0)(params, x)
 
     # def grad_theta_r_eikonal(self, params, x):
     #     """Vectorized gradient of f with respect to parameters theta."""
-    #     return vmap(self._grad_theta_r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_f(self, params, x):
     #     """Gradient of f with respect to parameters theta (non-vectorized, private)."""
-    #     return jacrev(self.f, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self.f, argnums=0)(params, x)
 
     # def grad_theta_f(self, params, x):
     #     """Vectorized gradient of f with respect to parameters theta."""
-    #     return vmap(self._grad_theta_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_f, in_dims=(None, 0), out_dims=(0))(params, x)
 
 
 class RealGaborLayer(nn.Module):
@@ -184,40 +184,40 @@ class WIRE(nn.Module):
         # convert to the right data type
         if z is not None:
             x = torch.cat([x, z], dim=-1)
-        output = self.net(x.to(dtype=torch.float64))
+        output = self.net(x)
         return output
 
     def f(self, params, x):
         """Wrapper for functional_call."""
-        return functional_call(self, params, x.to(dtype=torch.float64))
+        return functional_call(self, params, x)
 
     # def _r_data(self, params, x, target):
     #     return self.f(params, x).squeeze() - target
 
     # def r_data(self, params, x, target):
-    #     return vmap(self._r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+    #     return vmap(self._r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
 
     # def _grad_theta_r_data(self, params, x, target):
-    #     return jacrev(self._r_data, argnums=0)(params, x.to(dtype=torch.float64), target)
+    #     return jacrev(self._r_data, argnums=0)(params, x, target)
 
     # def grad_theta_r_data(self, params, x, target):
-    #     return vmap(self._grad_theta_r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+    #     return vmap(self._grad_theta_r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
 
     def _grad_x_f(self, params, x):
         """Jacobian of f with respect to input x (non-vectorized, private)."""
-        return jacrev(self.f, argnums=1)(params, x.to(dtype=torch.float64))
+        return jacrev(self.f, argnums=1)(params, x)
 
     def grad_x_f(self, params, x):
         """Vectorized Jacobian of f with respect to input x."""
-        return vmap(self._grad_x_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        return vmap(self._grad_x_f, in_dims=(None, 0), out_dims=(0))(params, x)
 
     def _hess_x_f(self, params, x):
         """Hessian of f with respect to input x (non-vectorized, private)."""
-        return jacfwd(self._grad_x_f, argnums=1)(params, x.to(dtype=torch.float64))
+        return jacfwd(self._grad_x_f, argnums=1)(params, x)
 
     def hess_x_f(self, params, x):
         """Vectorized Hessian of f with respect to input x."""
-        return vmap(self._hess_x_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        return vmap(self._hess_x_f, in_dims=(None, 0), out_dims=(0))(params, x)
 
 
     def _r_normal(self, params, x, target_normal):
@@ -233,13 +233,13 @@ class WIRE(nn.Module):
         return (torch.dot(model_normal.squeeze(0), target_normal)-1).unsqueeze(-1)
 
     def r_normal(self, params, x, target_normal):
-        return vmap(self._r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
+        return vmap(self._r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x, target_normal)
 
     def _grad_theta_r_normal(self, params, x, target_normal):
-        return jacrev(self._r_normal, argnums=0)(params, x.to(dtype=torch.float64), target_normal)
+        return jacrev(self._r_normal, argnums=0)(params, x, target_normal)
 
     def grad_theta_r_normal(self, params, x, target_normal):
-        return vmap(self._grad_theta_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target_normal)
+        return vmap(self._grad_theta_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x, target_normal)
 
     # def _r_laplacian(self, params, x):
     #     hess_f = self._hess_x_f(params, x).squeeze(1)
@@ -247,13 +247,13 @@ class WIRE(nn.Module):
     #     return tr_hess
 
     # def r_laplacian(self, params, x):
-    #     return vmap(self._r_laplacian, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._r_laplacian, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_r_laplacian(self, params, x):
-    #     return jacrev(self._r_laplacian, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self._r_laplacian, argnums=0)(params, x)
 
     # def grad_theta_r_laplacian(self, params, x):
-    #     return vmap(self._grad_theta_r_laplacian, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_r_laplacian, in_dims=(None, 0), out_dims=(0))(params, x)
 
     def _r_mean_curvature(self, params, x, target):
         grad_f = self._grad_x_f(params, x).squeeze(1)
@@ -268,13 +268,13 @@ class WIRE(nn.Module):
         return mean_curvatures - target
 
     def r_mean_curvature(self, params, x, target):
-        return vmap(self._r_mean_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+        return vmap(self._r_mean_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
 
     def _grad_theta_r_mean_curvature(self, params, x, target):
-        return jacrev(self._r_mean_curvature, argnums=0)(params, x.to(dtype=torch.float64), target)
+        return jacrev(self._r_mean_curvature, argnums=0)(params, x, target)
 
     def grad_theta_r_mean_curvature(self, params, x, target):
-        return vmap(self._grad_theta_r_mean_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+        return vmap(self._grad_theta_r_mean_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
     
     def _r_gauss_curvature(self, params, x, target):
         grad_f = self._grad_x_f(params, x).squeeze(1)
@@ -286,13 +286,13 @@ class WIRE(nn.Module):
         return gauss_curvature - target
 
     def r_gauss_curvature(self, params, x, target):
-        return vmap(self._r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+        return vmap(self._r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
     
     def _grad_theta_r_gauss_curvature(self, params, x, target):
-        return jacrev(self._r_gauss_curvature, argnums=0)(params, x.to(dtype=torch.float64), target)
+        return jacrev(self._r_gauss_curvature, argnums=0)(params, x, target)
 
     def grad_theta_r_gauss_curvature(self, params, x, target):
-        return vmap(self._grad_theta_r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x.to(dtype=torch.float64), target)
+        return vmap(self._grad_theta_r_gauss_curvature, in_dims=(None, 0, 0), out_dims=(0))(params, x, target)
 
     # def _r_principle_curvature_1(self, params, x):
     #     k_m = self._r_mean_curvature(params, x, 0)
@@ -301,13 +301,13 @@ class WIRE(nn.Module):
     #     return k_1
 
     # def r_principle_curvature_1(self, params, x):
-    #     return vmap(self._r_principle_curvature_1, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._r_principle_curvature_1, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_r_principle_curvature_1(self, params, x):
-    #     return jacrev(self._r_principle_curvature_1, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self._r_principle_curvature_1, argnums=0)(params, x)
 
     # def grad_theta_r_principle_curvature_1(self, params, x):
-    #     return vmap(self._grad_theta_r_principle_curvature_1, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_r_principle_curvature_1, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _r_principle_curvature_2(self, params, x):
     #     k_m = self._r_mean_curvature(params, x)
@@ -316,13 +316,13 @@ class WIRE(nn.Module):
     #     return k_2
 
     # def r_principle_curvature_2(self, params, x):
-    #     return vmap(self._r_principle_curvature_2, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._r_principle_curvature_2, in_dims=(None, 0), out_dims=(0))(params, x)
 
     # def _grad_theta_r_principle_curvature_2(self, params, x):
-    #     return jacrev(self._r_principle_curvature_2, argnums=0)(params, x.to(dtype=torch.float64))
+    #     return jacrev(self._r_principle_curvature_2, argnums=0)(params, x)
 
     # def grad_theta_r_principle_curvature_2(self, params, x):
-    #     return vmap(self._grad_theta_r_principle_curvature_2, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+    #     return vmap(self._grad_theta_r_principle_curvature_2, in_dims=(None, 0), out_dims=(0))(params, x)
 
     def _r_eikonal(self, params, x):
         """Eikonal residual of f with respect to input x (non-vectorized, private)."""
@@ -330,19 +330,19 @@ class WIRE(nn.Module):
 
     def r_eikonal(self, params, x):
         """Vectorized gradient of f with respect to parameters theta."""
-        return vmap(self._r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        return vmap(self._r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x)
 
     def _grad_theta_r_eikonal(self, params, x):
-        return jacrev(self._r_eikonal, argnums=0)(params, x.to(dtype=torch.float64))
+        return jacrev(self._r_eikonal, argnums=0)(params, x)
 
     def grad_theta_r_eikonal(self, params, x):
         """Vectorized gradient of f with respect to parameters theta."""
-        return vmap(self._grad_theta_r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        return vmap(self._grad_theta_r_eikonal, in_dims=(None, 0), out_dims=(0))(params, x)
 
     def _grad_theta_f(self, params, x):
         """Gradient of f with respect to parameters theta (non-vectorized, private)."""
-        return jacrev(self.f, argnums=0)(params, x.to(dtype=torch.float64))
+        return jacrev(self.f, argnums=0)(params, x)
 
     def grad_theta_f(self, params, x):
         """Vectorized gradient of f with respect to parameters theta."""
-        return vmap(self._grad_theta_f, in_dims=(None, 0), out_dims=(0))(params, x.to(dtype=torch.float64))
+        return vmap(self._grad_theta_f, in_dims=(None, 0), out_dims=(0))(params, x)

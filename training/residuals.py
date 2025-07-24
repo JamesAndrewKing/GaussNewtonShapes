@@ -21,17 +21,6 @@ def adjugate_3x3(A):
     ], dim=1)
 
     return adj
-## We can simplify a bit:
-# def adjugate_3x3(A):
-#     a, b, c = A[:,0]
-#     d, e, f = A[:,1]
-#     g, h, i = A[:,2]
-#     adj=torch.tensor([
-#             [e*i-f*h, c*h-b*i, b*f-c*e],
-#             [f*g-d*i, a*i-c*g, c*d-a*f],
-#             [d*h-e*g, b*g-a*h, a*e-b*d],
-#         ], dtype=A.dtype, device=A.device)  # shape: (3,3,B)
-#     return adj.permute(2,0,1)  # reshape to (B,3,3)
 
 # ===== Base functions =====
 

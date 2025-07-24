@@ -28,15 +28,16 @@ def sample_model_surface_newton(model, init_points, n_iter=10, newton_clip=0.15,
     points_on_surface = init_points[valid_mask].detach()
     return points_on_surface
 
-def sample_model_surface_binsearch(model, pts_boundary, bound_limit=1.0):
+def sample_model_surface_binsearch(model, pts_boundary, bounds, z=None):
+    dtype = next(model.parameters()).dtype
     netp = NetWithPartials.create_from_model(model=model, nz=0, nx=3)
-    # bounds = torch.tensor([[-2,2], [-2,2], [-2,2]], dtype=torch.float64)
-    bounds = torch.tensor([[-bound_limit,bound_limit], [-bound_limit,bound_limit], [-bound_limit,bound_limit]], dtype=torch.float64)
-    grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(10000, bounds, equidistant=True)
+    grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(100_000, bounds, equidistant=True)
     # grid_find_surface, grid_dist_find_surface, init_grid_resolution = precompute_sample_grid(5000, bounds, equidistant=True)
+    if z is None:
+        z = torch.zeros([1,0], dtype=dtype)
     success, (p_surface, y_sel) = find_boundary_points_numerically_with_binsearch(
         netp=netp, 
-        z=torch.zeros([1,0], dtype=torch.float64),
+        z=z,
         n_steps=10,
         x_grid=grid_find_surface, 
         x_grid_dist=grid_dist_find_surface, 

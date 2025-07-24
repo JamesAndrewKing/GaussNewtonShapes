@@ -133,7 +133,7 @@ class PHManager():
         return ph    
 
    
-    def calc_ph_loss_cripser(self, z: torch.tensor)-> tuple[bool, torch.tensor]:
+    def calc_ph_loss_cripser(self, z: torch.tensor, return_for_GN=False)-> tuple[bool, torch.tensor]:
         """
         Calculate the persistent homology loss using a mpm pool.
 
@@ -212,6 +212,8 @@ class PHManager():
         With that, I think you can just return x_in and penalize toward zero with your optimizer.
         (Maybe double check that Y_grad is indeed positive, but I think it should be per construction of PH).
         """
+        if return_for_GN:
+            return True, x_in
         
         
         # compute loss for each listitem

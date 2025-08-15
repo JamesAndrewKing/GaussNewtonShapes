@@ -1,20 +1,20 @@
 import torch
 import math
 
-# def inflate_bounds(bounds, amount=0.10):
-#     """
-#     Inflate a bounding box by the specified fraction of the extent on each side.
-#     To finding good surface points, the bounding box should not be tight.
-#     This is because
-#         (A) we want to sample initial points around the surface which cannot be fulfilled if the surface is near bbox,
-#         (B) point trajectories may overshoot the surface and leave the bbox getting filtered.
-#     This is not required if the bbox is not tight.
-#     """
-#     lengths = bounds[:,1] - bounds[:,0]
-#     bounds_ = bounds.clone()
-#     bounds_[:,0] -= lengths*amount
-#     bounds_[:,1] += lengths*amount
-#     return bounds_
+def inflate_bounds(bounds, amount=0.10):
+    """
+    Inflate a bounding box by the specified fraction of the extent on each side.
+    To finding good surface points, the bounding box should not be tight.
+    This is because
+        (A) we want to sample initial points around the surface which cannot be fulfilled if the surface is near bbox,
+        (B) point trajectories may overshoot the surface and leave the bbox getting filtered.
+    This is not required if the bbox is not tight.
+    """
+    lengths = bounds[:,1] - bounds[:,0]
+    bounds_ = bounds.clone()
+    bounds_[:,0] -= lengths*amount
+    bounds_[:,1] += lengths*amount
+    return bounds_
 
 
 def precompute_sample_grid(n_points: int, bounds: torch.Tensor, equidistant: bool):

@@ -151,6 +151,7 @@ class PHManager():
         Y_flat = einops.rearrange(Y_flat, '(bz n) -> bz n', bz=z.shape[0])
         # put them back to the full grid
         Y = einops.repeat(self.Y_inf, '... -> bz ...', bz=z.shape[0]).clone()
+        Y = Y.to(dtype=Y_flat.dtype)
         Y[:, self.xs_inside_envelope_mask] = Y_flat
         # unflatten Y
         Y = Y.reshape(z.shape[0], *(self.n_grid_points,)*self.nx)
@@ -183,6 +184,8 @@ class PHManager():
     
         x_idcs = torch.from_numpy(np.concatenate(x_list)).to(self.xs.device)
         if len(x_idcs) == 0:
+            if return_for_GN:
+                return False, torch.zeros([0,3], device=self.xs.device, dtype=self.xs.dtype)
             return False, torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device)
        
         # select with indices 

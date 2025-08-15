@@ -187,7 +187,7 @@ class PointWrapper:
         :return: z_in: [k nz]
         '''
         bz, nz = z.shape
-        z_in = torch.zeros((len(self.data), nz), device=self.data.device, dtype=self.data.dtype)
+        z_in = torch.zeros((len(self.data), nz), device=self.data.device, dtype=z.dtype)
         for i_shape in range(bz):
             if len(self._map[i_shape]) == 0:
                 continue

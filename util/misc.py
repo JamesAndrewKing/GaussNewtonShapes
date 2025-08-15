@@ -22,9 +22,9 @@ import torch
 #     torch.cuda.manual_seed(seed)
 #     torch.backends.cudnn.deterministic = True
 
-# def get_is_out_mask(x, bounds):
-#     out_mask = (x < bounds[:, 0]).any(1) | (x > bounds[:, 1]).any(1)
-#     return out_mask
+def get_is_out_mask(x, bounds):
+    out_mask = (x < bounds[:, 0]).any(1) | (x > bounds[:, 1]).any(1)
+    return out_mask
 
 # def is_every_n_epochs_fulfilled(epoch, config, key):
 #     if key not in config:

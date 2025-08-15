@@ -57,7 +57,6 @@ class GaussNewton:
         #             continue
         #         param.data -= self.lr * param.grad
         # If line search is enabled
-        # TODO: do line search like in GaussNewtonNew, seems to work better
         if self.do_line_search:
             current_loss = compute_loss(self.params_dict, self.res_terms)
             best_loss = current_loss

@@ -74,18 +74,19 @@ class ResidualLibrary:
     def _data(self, params, x, val):
         return (self._f(params, x).squeeze() - val).unsqueeze(-1) ## TODO: do we need the (un)squeezing?
     
-    def _design_region(self, params, x, val=None):
-        return torch.minimum(torch.tensor([0], dtype=x.dtype), self._f(params, x).squeeze()).unsqueeze(-1)
+    def _design_region(self, params, x, val=0):
+        # return torch.minimum(torch.tensor([val], dtype=x.dtype), self._f(params, x).squeeze()).unsqueeze(-1)
+        return torch.nn.functional.relu(val - self._f(params, x).squeeze()).unsqueeze(-1)
     
     def _connectedness(self, params, x, val=None):
         return torch.minimum(torch.tensor([0], dtype=x.dtype), -self._f(params, x).squeeze()).unsqueeze(-1)
 
     def _eikonal(self, params, x, val=None):
-        return self._grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1 ## we could treat val=1
+        return self._grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1
 
     def _normal(self, params, x, true_normal):
         g = self._grad_x_f(params, x).squeeze(1)
-        pred_normal = g / g.norm(p=2)
+        pred_normal = g #/ g.norm(p=2)
         return (torch.dot(pred_normal.squeeze(0), true_normal) - 1).unsqueeze(-1)
 
     def _laplacian(self, params, x, val=None):
@@ -137,7 +138,7 @@ class ResidualTerm:
         func: Callable, 
         weight: float, 
         points: torch.Tensor, 
-        vals: Optional[Union[float, int, torch.Tensor, None]] = None
+        vals: Optional[Union[float, int, torch.Tensor, None]] = None,
     ):
         self.func = func
         self.weight = weight
@@ -193,8 +194,10 @@ class ResidualTerm:
     
     
 def compute_loss(params, res_terms, return_unweighted_losses=False):
-    unweighted_losses = {key: res_term.unweighted_loss(params) for key, res_term in res_terms.items()} ## might be used for logging
-    loss = sum(res_terms[key].weight*unweighted_losses[key] for key in res_terms)
+    ## skip a residual term if it has no points, since these are sometimes found dynamically
+    unweighted_losses = {key: res_term.unweighted_loss(params) for key, res_term in res_terms.items() if len(res_term.points)>0}
+    loss = sum(res_terms[key].weight*unweighted_losses[key] for key in unweighted_losses)
+    ## unweighted losses might be used for logging
     if return_unweighted_losses:
         return loss, unweighted_losses
     return loss

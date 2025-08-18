@@ -98,7 +98,6 @@ class GaussNewton:
 # This optimizer is slightly slower, but can handle big models using the Woodbury trick
 class GaussNewtonNew:
     def __init__(self, model, res_terms, lr=0.1, regularization=1e-6, do_line_search=True, line_search_steps=15, do_woodbury=False):
-        self.model = model
         self.params_dict = dict(model.named_parameters())
         self.params_list = list(model.parameters())
         self.res_terms = res_terms
@@ -153,7 +152,7 @@ class GaussNewtonNew:
                 theta_try = theta_orig - lr * update
                 vector_to_parameters(theta_try, self.params_list)
     
-                residual = compute_residual(self.model, self.config)
+                residual = compute_residual(self.params_dict, self.config)
                 loss = torch.sum(residual.square()).item()
     
                 if loss < best_loss:

@@ -96,8 +96,12 @@ class GaussNewton:
 
 
 # This optimizer is slightly slower, but can handle big models using the Woodbury trick
+import torch
+from torch.nn.utils import parameters_to_vector
+
 class GaussNewtonNew:
-    def __init__(self, model, res_terms, lr=0.1, regularization=1e-6, do_line_search=True, line_search_steps=15, do_woodbury=False):
+    def __init__(self, model, res_terms, lr=0.1, regularization=1e-6,
+                 do_line_search=True, line_search_steps=15, do_woodbury=False):
         self.params_dict = dict(model.named_parameters())
         self.params_list = list(model.parameters())
         self.res_terms = res_terms
@@ -115,56 +119,68 @@ class GaussNewtonNew:
             if p.grad is not None:
                 p.grad.zero_()
 
+    def _assign_flat_params_inplace(self, flat: torch.Tensor) -> None:
+        """Safe in-place copy into existing Parameter storages (preserves references)."""
+        pointer = 0
+        with torch.no_grad():
+            for p in self.params_list:
+                n = p.numel()
+                # match dtype/device of destination; no aliasing, no .data rebinding
+                p.copy_(flat[pointer:pointer+n].view_as(p).to(dtype=p.dtype, device=p.device))
+                pointer += n
+
     def calculate_update(self):
         r = compute_residual(self.params_dict, self.res_terms)
         grad = compute_JTv(self.params_dict, self.res_terms, r)
         eps = self.regularization
-        A = compute_JTJ(self.params_dict, self.res_terms) + eps * torch.eye(grad.shape[0], dtype=grad.dtype)
+        JTJ = compute_JTJ(self.params_dict, self.res_terms)
+        A = JTJ + eps * torch.eye(grad.shape[0], dtype=grad.dtype, device=grad.device)
         x, _, _, _ = torch.linalg.lstsq(A.double(), grad.double(), driver="gels")
-        return x
+        return x.to(dtype=grad.dtype, device=grad.device)
 
     def calculate_update_woodbury(self):
         r = compute_residual(self.params_dict, self.res_terms)
         eps = self.regularization
-        A = compute_JJT(self.params_dict, self.res_terms) + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
+        JJT = compute_JJT(self.params_dict, self.res_terms)
+        A = JJT + eps * torch.eye(r.shape[0], dtype=r.dtype, device=r.device)
         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
-        return compute_JTv(self.params_dict, self.res_terms, x)
+        # J^T x (same dtype/device as params)
+        return compute_JTv(self.params_dict, self.res_terms, x).to(dtype=r.dtype, device=r.device)
 
     @torch.no_grad()
     def step(self):
         self.t += 1
 
-        if not self.do_woodbury:
-            update = self.calculate_update()
-        else:
-            update = self.calculate_update_woodbury()
-    
+        update = self.calculate_update() if not self.do_woodbury else self.calculate_update_woodbury()
         theta_orig = parameters_to_vector(self.params_list)
-    
+
+        # ensure update matches theta’s dtype/device
+        update = update.to(dtype=theta_orig.dtype, device=theta_orig.device)
+
         if self.do_line_search:
             best_loss = float('inf')
             best_theta = theta_orig
             best_lr = self.lr
-    
-            lrs = torch.logspace(0, -3, steps=self.line_search_steps, dtype=theta_orig.dtype)
-    
+
+            lrs = torch.logspace(0, -3, steps=self.line_search_steps,
+                                 dtype=theta_orig.dtype, device=theta_orig.device)
+
             for lr in lrs:
                 theta_try = theta_orig - lr * update
-                vector_to_parameters(theta_try, self.params_list)
-    
+                self._assign_flat_params_inplace(theta_try)
+
                 residual = compute_residual(self.params_dict, self.config)
                 loss = torch.sum(residual.square()).item()
-    
+
                 if loss < best_loss:
                     best_loss = loss
                     self.loss = best_loss
-                    best_theta = theta_try
-                    best_lr = lr
-    
-            vector_to_parameters(best_theta, self.params_list)
+                    best_theta = theta_try.clone()  # keep a copy on same device/dtype
+                    best_lr = float(lr)
+
+            self._assign_flat_params_inplace(best_theta)
             self.lr = best_lr
-    
+
         else:
-            # Single update step without line search
             theta_new = theta_orig - self.lr * update
-            vector_to_parameters(theta_new, self.params_list)
+            self._assign_flat_params_inplace(theta_new)

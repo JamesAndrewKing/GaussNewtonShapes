@@ -75,11 +75,10 @@ class ResidualLibrary:
         return (self._f(params, x).squeeze() - val).unsqueeze(-1) ## TODO: do we need the (un)squeezing?
     
     def _design_region(self, params, x, val=0):
-        # return torch.minimum(torch.tensor([val], dtype=x.dtype), self._f(params, x).squeeze()).unsqueeze(-1)
         return torch.nn.functional.relu(val - self._f(params, x).squeeze()).unsqueeze(-1)
     
-    def _connectedness(self, params, x, val=None):
-        return torch.minimum(torch.tensor([0], dtype=x.dtype), -self._f(params, x).squeeze()).unsqueeze(-1)
+    def _connectedness(self, params, x, val=0):
+        return torch.nn.functional.relu(self._f(params, x).squeeze() - val).unsqueeze(-1)
 
     def _eikonal(self, params, x, val=None):
         return self._grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1

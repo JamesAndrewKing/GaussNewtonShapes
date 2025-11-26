@@ -69,6 +69,7 @@ class ResidualLibrary:
         ## Single
         self._f        = lambda params, x: functional_call(self.model, params, x.unsqueeze(0)).squeeze(0)
         self._grad_x_f = jacrev(self._f, argnums=1)
+        self._grad_x_f_batch = vmap(self._grad_x_f, in_dims=(None, 0))
         self._hess_x_f = jacfwd(self._grad_x_f, argnums=1)
 
     def _data(self, params, x, val):

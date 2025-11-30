@@ -1,12 +1,16 @@
+"""
+### Gauss-Newton modular implementation
+
+Key idea:
+- `ResidualLibrary` implements the different residuals, e.g., data, eikonal ...
+- `ResidualTerm` implements standard transformations to apply the residuals, e.g., vectorization, Jacobian ...
+- `res_term` dictionary registers the residuals that define the specific optimization problem
+- `GaussNewton` and its subroutines become simpler since all residuals share the same abstraction
+"""
+
 import torch
 from torch.func import vmap, jacrev, jacfwd, functional_call
-
-_model = None
-
-def bind_model(model):
-    """Bind the model once for use in all residuals."""
-    global _model
-    _model = model
+from typing import Callable, Union, Optional
 
 def adjugate_3x3(A):
     # A: tensor of shape (B, 3, 3)
@@ -21,153 +25,179 @@ def adjugate_3x3(A):
     ], dim=1)
 
     return adj
-
-# ===== Base functions =====
-
-def _f(params, x):
-    """Model output (single input)."""
-    return functional_call(_model, params, x.unsqueeze(0)).squeeze(0)
-
-def f(params, x):
-    """Model output (batched)."""
-    return vmap(_f, in_dims=(None, 0))(params, x)
-
-def _grad_x_f(params, x):
-    return jacrev(_f, argnums=1)(params, x)
-
-def grad_x_f(params, x):
-    return vmap(_grad_x_f, in_dims=(None, 0))(params, x)
-
-def _hess_x_f(params, x):
-    return jacfwd(_grad_x_f, argnums=1)(params, x)
-
-def hess_x_f(params, x):
-    return vmap(_hess_x_f, in_dims=(None, 0))(params, x)
+# def adjugate_3x3(A):
+#     print(A.shape)
+#     a, b, c = A[:,0]
+#     d, e, f = A[:,1]
+#     g, h, i = A[:,2]
+#     adj=torch.tensor([
+#             [e*i-f*h, c*h-b*i, b*f-c*e],
+#             [f*g-d*i, a*i-c*g, c*d-a*f],
+#             [d*h-e*g, b*g-a*h, a*e-b*d],
+#         ], dtype=A.dtype, device=A.device)  # shape: (3,3,B)
+#     return adj.permute(2,0,1)  # reshape to (B,3,3)
 
 
-# ===== Residual functions =====
-# r_example returns residual vector of form (N,1)
-# grad_theta_r_example returns dict with derivatives per layer of form (N,1,layer_out,layer_in)
+def _mean_curv(g, h):
+    ## Compute the mean curvature from the Jacobian g and the Hessian h
+    ## Static, allows to reuse g, h in the same parent function saving compute
+    gHg = torch.einsum('bi,bij,bj->b', g, h, g)
+    tr_h = torch.einsum('bii->b', h)
+    norm_g = g.square().sum(1).sqrt()
+    return -(gHg - norm_g**2 * tr_h) / (2 * norm_g**3)
 
-def _r_data(params, x, vals):
-    return (_f(params, x).squeeze() - vals).unsqueeze(-1)
-
-def r_data(params, x, vals):
-    return vmap(_r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_data(params, x, vals):
-    return jacrev(_r_data, argnums=0)(params, x, vals)
-
-def grad_theta_r_data(params, x, vals):
-    return vmap(_grad_theta_r_data, in_dims=(None, 0, 0), out_dims=(0))(params, x, vals)
-
-def _r_eikonal(params, x, vals=None):
-    return _grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1
-
-def r_eikonal(params, x, vals=None):
-    return vmap(_r_eikonal, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_eikonal(params, x, vals=None):
-    return jacrev(_r_eikonal, argnums=0)(params, x, vals)
-
-def grad_theta_r_eikonal(params, x, vals=None):
-    return vmap(_grad_theta_r_eikonal, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _r_normal(params, x, true_normal):
-    grad_f = _grad_x_f(params, x).squeeze(1)
-    norm_grad_f = grad_f.norm(p=2)
-    model_normal = grad_f / norm_grad_f
-    return (torch.dot(model_normal.squeeze(0), true_normal)-1).unsqueeze(-1)
-
-def r_normal(params, x, true_normal):
-    return vmap(_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x, true_normal)
-
-def _grad_theta_r_normal(params, x, true_normal):
-    return jacrev(_r_normal, argnums=0)(params, x, true_normal)
-
-def grad_theta_r_normal(params, x, true_normal):
-    return vmap(_grad_theta_r_normal, in_dims=(None, 0, 0), out_dims=(0))(params, x, true_normal)
-
-def _r_laplacian(params, x, vals=None):
-    hess_f = _hess_x_f(params, x).squeeze(1)
-    tr_hess = torch.einsum('bii->b', hess_f)
-    return tr_hess
-
-def r_laplacian(params, x, vals=None):
-    return vmap(_r_laplacian, in_dims=(None, 0, None), out_dims=0)(params, x, vals)
-
-def _grad_theta_r_laplacian(params, x, vals=None):
-    return jacrev(_r_laplacian, argnums=0)(params, x, vals)
-
-def grad_theta_r_laplacian(params, x, vals=None):
-    return vmap(_grad_theta_r_laplacian, in_dims=(None, 0, None), out_dims=0)(params, x, vals)
-
-def _r_mean_curvature(params, x, vals=None):
-    grad_f = _grad_x_f(params, x).squeeze(1)
-    hess_f = _hess_x_f(params, x).squeeze(1)
-    grad_hess_grad = torch.einsum('bi,bij,bj->b', grad_f, hess_f, grad_f)
-    tr_hess = torch.einsum('bii->b', hess_f)
-    norm_grad_f = grad_f.square().sum(1).sqrt()
-    mean_curvatures = -(grad_hess_grad - norm_grad_f.pow(2) * tr_hess) / (2 * norm_grad_f.pow(3))
-    return mean_curvatures
-
-def r_mean_curvature(params, x, vals=None):
-    return vmap(_r_mean_curvature, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_mean_curvature(params, x, vals=None):
-    return jacrev(_r_mean_curvature, argnums=0)(params, x, vals)
-
-def grad_theta_r_mean_curvature(params, x, vals=None):
-    return vmap(_grad_theta_r_mean_curvature, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _r_gauss_curvature(params, x, vals=None):
-    grad_f = _grad_x_f(params, x).squeeze(1)
-    hess_f = _hess_x_f(params, x).squeeze(1)
-    adj_hess_f = adjugate_3x3(hess_f)
-    grad_adj_grad = torch.einsum('bi,bij,bj->b', grad_f, adj_hess_f, grad_f)
-    norm_grad_f = grad_f.square().sum(1).sqrt()
-    gauss_curvature = grad_adj_grad / norm_grad_f.pow(4)
-    return gauss_curvature
-
-def r_gauss_curvature(params, x, vals=None):
-    return vmap(_r_gauss_curvature, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_gauss_curvature(params, x, vals=None):
-    return jacrev(_r_gauss_curvature, argnums=0)(params, x, vals)
-
-def grad_theta_r_gauss_curvature(params, x, vals=None):
-    return vmap(_grad_theta_r_gauss_curvature, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _r_principle_curvature_1(params, x, vals=None):
-    k_m = _r_mean_curvature(params, x, vals)
-    k_g = _r_gauss_curvature(params, x, vals)
-    k_1 = k_m + torch.sqrt(k_m.pow(2) - k_g)
-    return k_1
-
-def r_principle_curvature_1(params, x, vals=None):
-    return vmap(_r_principle_curvature_1, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_principle_curvature_1(params, x, vals=None):
-    return jacrev(_r_principle_curvature_1, argnums=0)(params, x, vals)
-
-def grad_theta_r_principle_curvature_1(params, x, vals=None):
-    return vmap(_grad_theta_r_principle_curvature_1, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _r_principle_curvature_2(params, x, vals=None):
-    k_m = _r_mean_curvature(params, x, vals)
-    k_g = _r_gauss_curvature(params, x, vals)
-    k_1 = k_m - torch.sqrt(k_m.pow(2) - k_g)
-    return k_1
-
-def r_principle_curvature_2(params, x, vals=None):
-    return vmap(_r_principle_curvature_2, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
-
-def _grad_theta_r_principle_curvature_2(params, x, vals=None):
-    return jacrev(_r_principle_curvature_2, argnums=0)(params, x, vals)
-
-def grad_theta_r_principle_curvature_2(params, x, vals=None):
-    return vmap(_grad_theta_r_principle_curvature_2, in_dims=(None, 0, None), out_dims=(0))(params, x, vals)
+def _gauss_curv(g, h):
+    ## Compute the Gauss curvature from the Jacobian g and the Hessian h
+    ## Static, allows to reuse g, h in the same parent function saving compute
+    adj = adjugate_3x3(h)
+    gAdjg = torch.einsum('bi,bij,bj->b', g, adj, g)
+    return gAdjg / g.square().sum(1).pow(2)
 
 
+class ResidualLibrary:
+    r"""
+    Implements different residuals of interest amenable to Gauss-Newton: 0.5*\int r(x)^2 dx.
+    All residuals share the signature: self, params, point, val -> scalar tensor.
+    where val may or may not be used internally as an optional target.
+    """
+    def __init__(self, model):
+        self.model = model
 
+        ## all of the below have the signature 
+        ## self.*(params, x) with x being [1, D] for self._func and [B, D] for self.func
+        
+        ## Single
+        self._f        = lambda params, x: functional_call(self.model, params, x.unsqueeze(0)).squeeze(0)
+        self._grad_x_f = jacrev(self._f, argnums=1)
+        self._grad_x_f_batch = vmap(self._grad_x_f, in_dims=(None, 0))
+        self._hess_x_f = jacfwd(self._grad_x_f, argnums=1)
 
+    def _data(self, params, x, val):
+        return (self._f(params, x).squeeze() - val).unsqueeze(-1) ## TODO: do we need the (un)squeezing?
+    
+    def _design_region(self, params, x, val=0):
+        return torch.nn.functional.relu(val - self._f(params, x).squeeze()).unsqueeze(-1)
+    
+    def _connectedness(self, params, x, val=0):
+        return torch.nn.functional.relu(self._f(params, x).squeeze() - val).unsqueeze(-1)
+
+    def _eikonal(self, params, x, val=None):
+        return self._grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1
+
+    def _normal(self, params, x, true_normal):
+        g = self._grad_x_f(params, x).squeeze(1)
+        pred_normal = g #/ g.norm(p=2)
+        return (torch.dot(pred_normal.squeeze(0), true_normal) - 1).unsqueeze(-1)
+
+    def _laplacian(self, params, x, val=None):
+        h = self._hess_x_f(params, x).squeeze(1)
+        return torch.einsum('bii->b', h)
+
+    def _mean_curvature(self, params, x, val=None):
+        g = self._grad_x_f(params, x).squeeze(1)
+        h = self._hess_x_f(params, x).squeeze(1)
+        return _mean_curv(g, h)
+    
+    def _gauss_curvature(self, params, x, val=None):
+        g = self._grad_x_f(params, x).squeeze(1)
+        h = self._hess_x_f(params, x).squeeze(1)
+        return _gauss_curv(g, h)
+
+    def _principal_curvature_1(self, params, x, val=None):
+        g = self._grad_x_f(params, x).squeeze(1)
+        h = self._hess_x_f(params, x).squeeze(1)
+        k_m = _mean_curv(g, h)
+        k_g = _gauss_curv(g, h)
+        return k_m + torch.sqrt(k_m**2 - k_g)
+
+    def _principal_curvature_2(self, params, x, val=None):
+        g = self._grad_x_f(params, x).squeeze(1)
+        h = self._hess_x_f(params, x).squeeze(1)
+        k_m = _mean_curv(g, h)
+        k_g = _gauss_curv(g, h)
+        return k_m - torch.sqrt(k_m**2 - k_g)
+    
+    def _strain(self, params, x, val=None):
+        r"""
+        Strain is 
+        \int k1^2 + k2^2 dx = \int \sqrt{k1^2 + k2^2}^2 dx
+        so the residual can be written as r(x) = \sqrt{k1^2 + k2^2}.
+        This can be simplified in terms of the mean and Gaussian curvatures:
+        k1^2 + k2^2 = 4*k_m^2 - 2*k_g
+        """
+        g = self._grad_x_f(params, x).squeeze(1)
+        h = self._hess_x_f(params, x).squeeze(1)
+        k_m = _mean_curv(g, h)
+        k_g = _gauss_curv(g, h)
+        return torch.sqrt(4*k_m**2 - 2*k_g)
+    
+    
+class ResidualTerm:
+    def __init__(
+        self, 
+        func: Callable, 
+        weight: float, 
+        points: torch.Tensor, 
+        vals: Optional[Union[float, int, torch.Tensor, None]] = None,
+    ):
+        self.func = func
+        self.weight = weight
+        self.points = points
+        self.vals = vals
+        
+    def vmap(self, func: Callable) -> Callable:
+        """
+        Vectorizes the callable func(params, points, vals) based on the format of self.vals.
+        This is used for both the residual itself and its parameter Jacobian.
+        """
+        ## Same value for all points (including None).
+        ## More scalar cases exist, eg 0-dim torch.Tensor, numpy.ndarray but hard to check for a general scalar-like
+        if self.vals is None or isinstance(self.vals, (float, int)):
+            return vmap(func, in_dims=(None, 0, None))
+        ### Unique value for each point 
+        elif isinstance(self.vals, torch.Tensor) and len(self.vals)==len(self.points):
+            return vmap(func, in_dims=(None, 0, 0))
+        else:
+            raise ValueError(f"Invalid format for vals: {type(self.vals)}, shape: {getattr(self.vals, 'shape', None)}")
+    
+    def eval(self, params) -> torch.Tensor:
+        """
+        Evaluate the model on the batch of self.points using vmap.
+        Returns:
+            Tensor of shape [B, 1]: one residual value per point
+        """
+        return self.vmap(self.func)(params, self.points, self.vals)
+
+    def unweighted_loss(self, params) -> torch.Tensor:
+        r"""
+        Evaluate the residual 0.5 * \int r(x)^2 dx
+        Returns:
+            Scalar tensor of shape []
+        """
+        return 0.5*self.eval(params).square().mean()
+    
+    def weighted_loss(self, params) -> torch.Tensor:
+        """
+        Returns:
+            Scalar tensor of shape []
+        """
+        return self.weight * self.unweighted_loss(params)
+    
+    def grad_theta_r(self, params) -> torch.Tensor:
+        """
+        Evaluate the Jacobian of the residual on the batch of self.points using vmap.
+        Returns:
+            dict of Jacobian tensors, for each param tensor the shape is: [B, 1, *param.shape]
+        """
+        _grad_theta_r = jacrev(self.func, argnums=0)
+        return self.vmap(_grad_theta_r)(params, self.points, self.vals) 
+    
+    
+def compute_loss(params, res_terms, return_unweighted_losses=False):
+    ## skip a residual term if it has no points, since these are sometimes found dynamically
+    unweighted_losses = {key: res_term.unweighted_loss(params) for key, res_term in res_terms.items() if len(res_term.points)>0}
+    loss = sum(res_terms[key].weight*unweighted_losses[key] for key in unweighted_losses)
+    ## unweighted losses might be used for logging
+    if return_unweighted_losses:
+        return loss, unweighted_losses
+    return loss

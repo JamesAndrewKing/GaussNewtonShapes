@@ -2,7 +2,6 @@ import torch
 from GINN.numerical_boundary import find_boundary_points_numerically_with_binsearch
 from models.net_w_partials import NetWithPartials
 from util.sample_utils import precompute_sample_grid
-from training.residuals import grad_x_f
 
 def sample_model_surface_newton(model, res_lib, init_points, n_iter=10, newton_clip=0.15, tol=1e-8):
     for _ in range(n_iter):

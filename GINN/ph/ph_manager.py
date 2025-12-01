@@ -189,8 +189,8 @@ class PHManager():
             return False, torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device), torch.tensor(0.0, device=self.xs.device)
        
         # select with indices 
-        x_in = self.xs[*x_idcs.T] ## NOTE @JAMES: these are the relevant critical points identified by PH.        
-        # return x_in ## NOTE @JAMES: I think this is all you need: see the explanation below.
+        x_in = self.xs[*x_idcs.T] ## NOTE: these are the relevant critical points identified by PH.        
+        # return x_in ## NOTE: I think this is all you need: see the explanation below.
         z_in = torch.from_numpy(np.concatenate(z_list)).to(self.xs.device)
         
         list_loss_scc = []
@@ -198,9 +198,9 @@ class PHManager():
         list_loss_sub0 = []
         
         # do single forward pass for all x's
-        Y_grad = self.netp(x_in, z_in) ## NOTE @JAMES: these are the NN values at those points. 
+        Y_grad = self.netp(x_in, z_in) ## NOTE: these are the NN values at those points. 
         """
-        NOTE @ JAMES
+        NOTE
         _grad in Y_grad refers to the fact that we can backprop through this tensor; not to be confused with gradient of Y.
         
         For our connectedness intent, we ultimately call ph_distributed.loss_scc_dim_0 in the loop below, which evaluates this:

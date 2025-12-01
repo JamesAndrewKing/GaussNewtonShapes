@@ -109,4 +109,4 @@ With [notebooks/jeb.ipynb](notebooks/jeb.ipynb) you can train a model to design 
 | <img src="docs/jeb.png" width="300"> |
 
 Here are some interactive plots of the resulting surfaces using different optimizers. The surface colors indicate the value of the surface strain at that surface point $x$:
-<!-- - [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_gn.html) -->
+- [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_gn.html)

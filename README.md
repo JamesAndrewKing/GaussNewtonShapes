@@ -1,4 +1,4 @@
-# Gauss-Newton Natural Gradient Descent for Geometry-Informed Learning
+# Gauss-Newton Natural Gradient Descent for Shape Learning
 
 > **Note**: This repository is currently under active development.
 
@@ -102,7 +102,7 @@ Here are some interactive plots of the resulting surfaces using different optimi
 
 Given a specified design region we can learn a candidate shape for a jet engine bracket purely using constraints, for example curvature-based smoothness losses or topological losses enforcing connectedness. This example was originally explored in [GINN paper](https://arturs-berzins.github.io/GINN/).
 
-With [notebooks/jeb.ipynb](notebooks/jeb.ipynb) you can train a model to design your own jet engine.
+With [notebooks/jeb.ipynb](notebooks/jeb.ipynb) you can train a model to design your own jet engine bracket.
 
 | JEB (grey):       |
 |------------------------------------------|

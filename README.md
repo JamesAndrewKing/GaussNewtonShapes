@@ -3,7 +3,7 @@
 > **Note**: This repository is currently under active development.
 
 This repository implements [Gauss-Newton Natural Gradient Descent](
-https://doi.org/10.48550/arXiv.2402.10680) for training **Implicit Neural Shapes** using geometric constraints. The method extends the [GINN framework](https://arturs-berzins.github.io/GINN/) and is evaluated across three key geometry-informed learning tasks: learning minimal surfaces (Plateau's Problem), learning developable surfaces, and training implicit neural surfaces (INSs) using ground truth surface data and normals.
+https://doi.org/10.48550/arXiv.2402.10680) for training **Implicit Neural Shapes** using geometric constraints. The method extends the [GINN framework](https://arturs-berzins.github.io/GINN/) and is evaluated across multiple key geometry-informed learning tasks: learning minimal surfaces (Plateau's Problem), learning developable surfaces, training implicit neural surfaces (INSs) using ground truth surface data and normals, and training a geometry-informed neural network (GINN) to learn the shape of a jet engine bracket.
 
 ## Key Features
 - Solves PDE-constrained shape problems without any training data
@@ -20,7 +20,8 @@ https://doi.org/10.48550/arXiv.2402.10680) for training **Implicit Neural Shapes
 │   └── enneper.ipynb               # Plateau's Problem for Enneper Surface
 │   ├── cone.ipynb                  # Cone as Developable Surface
 │   ├── rockerarm.ipynb             # Rockerarm Implicit Neural Shape
-│   └── bunny.ipynb                 # Stanford Bunny Implicit Neural Shape
+│   ├── bunny.ipynb                 # Stanford Bunny Implicit Neural Shape
+│   └── jeb.ipynb                   # Jet engine bracket GINN
 ├── training/                       # Core training functionality
 │   ├── residuals.py                # Loss Residuals
 │   ├── optimizers.py               # Custom Gauss-Newton optimizer
@@ -48,7 +49,8 @@ Run the example notebooks
 ```jupyter notebook notebooks/enneper.ipynb``` or
 ```jupyter notebook notebooks/cone.ipynb``` or
 ```jupyter notebook notebooks/rockerarm.ipynb``` or
-```jupyter notebook notebooks/bunny.ipynb```
+```jupyter notebook notebooks/bunny.ipynb``` or
+```jupyter notebook notebooks/jeb.ipynb```
 
 
 
@@ -94,3 +96,17 @@ With [notebooks/rockerarm.ipynb](notebooks/rockerarm.ipynb) and [notebooks/bunny
 Here are some interactive plots of the resulting surfaces using different optimizers:
 - Rockerarm: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_rockerarm_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_rockerarm_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_rockerarm_gn.html)
 - Stanford Bunny: [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_bunny_adam.html), [LBFGS](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_bunny_lbfgs.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_bunny_gn.html)
+
+
+### Jet Engine Bracket
+
+Given a specified design region we can learn a candidate shape for a jet engine bracket purely using constraints, for example curvature-based smoothness losses or topological losses enforcing connectedness. This example was originally explored in [GINN paper](https://arturs-berzins.github.io/GINN/).
+
+With [notebooks/jeb.ipynb](notebooks/jeb.ipynb) you can train a model to design your own jet engine.
+
+| JEB (grey):       |
+|------------------------------------------|
+| <img src="docs/jeb.png" width="300"> |
+
+Here are some interactive plots of the resulting surfaces using different optimizers. The surface colors indicate the value of the surface strain at that surface point $x$:
+<!-- - [Adam](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_adam.html), [Gauss-Newton](https://JamesAndrewKing.github.io/PreconditionGINNs/k3d_plot_jeb_gn.html) -->

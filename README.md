@@ -1,9 +1,7 @@
 # Gauss-Newton Natural Gradient Descent for Shape Learning
 
-> **Note**: This repository is currently under active development.
-
 This repository implements [Gauss-Newton Natural Gradient Descent](
-https://doi.org/10.48550/arXiv.2402.10680) for training **Implicit Neural Shapes** using geometric constraints. The method extends the [GINN framework](https://arturs-berzins.github.io/GINN/) and is evaluated across multiple key geometry-informed learning tasks: learning minimal surfaces (Plateau's Problem), learning developable surfaces, training implicit neural surfaces (INSs) using ground truth surface data and normals, and training a geometry-informed neural network (GINN) to learn the shape of a jet engine bracket.
+https://doi.org/10.48550/arXiv.2602.00099) for training **Implicit Neural Shapes** using geometric constraints. The method extends the [GINN framework](https://arturs-berzins.github.io/GINN/) and is evaluated across multiple key geometry-informed learning tasks: learning minimal surfaces (Plateau's Problem), learning developable surfaces, training implicit neural surfaces (INSs) using ground truth surface data and normals, and training a geometry-informed neural network (GINN) to learn the shape of a jet engine bracket.
 
 ## Key Features
 - Solves PDE-constrained shape problems without any training data

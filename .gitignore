@@ -4,6 +4,7 @@ media/images
 notebooks/media
 notebooks/important_models
 _scratch
+review_files/
 
 configs/start_queue
 configs/running

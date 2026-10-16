@@ -114,7 +114,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     model = pretrain(task, seed, os.path.join(pretrained_dir, f"seed{seed}{args_str}.pt"))
     params = model.params
     res_lib = ResidualLibrary(model)
-    res_terms = task.res_terms(res_lib)
+    res_terms = task.res_terms(res_lib, opt_name)
     opt_kwargs = {**task.opt_defaults[opt_name], **opt_args}
     optim = make_optimizer(opt_name, model, res_terms, **opt_kwargs)
 
@@ -131,6 +131,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     log = {"time": [], "loss": [], **{k: [] for k in res_terms}}
     evals = []
     best_loss = float('inf')
+    best_state = {k: v.clone() for k, v in model.state_dict().items()}
     clock = Clock()
 
     for i in (pbar := trange(10**7, mininterval=10)):
@@ -148,7 +149,8 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
             unweighted_losses = train_step(optim, params, res_terms, None)
         clock.stop()
 
-        loss = sum(unweighted_losses[k].item() for k in task.loss_keys)
+        ## A term without points (e.g. the surface vanished) makes the reported loss nan
+        loss = sum(unweighted_losses[k].item() if k in unweighted_losses else float('nan') for k in task.loss_keys)
         log["time"].append(clock.elapsed)
         log["loss"].append(loss)
         for k in res_terms:

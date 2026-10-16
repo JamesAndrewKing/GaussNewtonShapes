@@ -32,41 +32,45 @@ from experiments.tasks import TASKS
 from experiments.plot import LABELS, load_runs, plot_over_time
 
 PAPER_FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "paper_figures")
-ORDER = ["adam", "lbfgs", "gn"]  ## left to right
 
 
 def curvature_mesh(task, run_dir, N=256):
     """Marching-cubes mesh of the best model with |curvature| as vertex attribute."""
-    hm = task.heatmap
     model = task.model()
     model.load_state_dict(torch.load(os.path.join(run_dir, "best.pt")))
-    verts, faces = get_mesh(
-        lambda x: model(x.double()), N=N, device='cuda',
-        bbox_min=torch.tensor(hm["bbox_min"], dtype=torch.float64),
-        bbox_max=torch.tensor(hm["bbox_max"], dtype=torch.float64),
-        chunks=2,
-    )
-    residual = getattr(ResidualLibrary(model), hm["residual"])
+    bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in task.mesh_bbox)
+    verts, faces = get_mesh(lambda x: model(x.double()), N=N, device='cuda', bbox_min=bbox_min, bbox_max=bbox_max, chunks=2)
+    residual = getattr(ResidualLibrary(model), "_" + task.curvature)
     k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
     return verts.astype(np.float32), faces.astype(np.uint32), k.abs().detach().cpu().numpy().astype(np.float32)
 
 
-def k3d_scene(task, meshes, gap=0.0, aspect=3.0):
-    """Meshes side by side along x, viewed from slightly above with z up (as in the paper)."""
+def k3d_scene(task, meshes):
+    """
+    Meshes side by side, viewed from slightly above with z up (as in the paper).
+    The camera looks along +y rotated by task.heatmap["azimuth"] about z; the meshes are shifted along the screen's horizontal.
+    The scene fits a window with aspect ratio len(meshes):1.
+    """
     hm = task.heatmap
-    width = hm["bbox_max"][0] - hm["bbox_min"][0]
-    offsets = (np.arange(len(meshes)) - (len(meshes) - 1) / 2) * width * (1 + gap)
+    a, e = np.deg2rad(hm["azimuth"]), np.deg2rad(hm["elevation"])
+    right = np.array([np.cos(a), np.sin(a), 0])
+    view = np.array([np.sin(a) * np.cos(e), -np.cos(a) * np.cos(e), np.sin(e)])  ## from the center towards the camera
+    verts_all = np.concatenate([verts for verts, _, _ in meshes]).astype(np.float64)
+    center = (verts_all.min(0) + verts_all.max(0)) / 2
+    width = float(np.ptp(verts_all @ right))  ## extent of one mesh along the screen's horizontal
+    offsets = (np.arange(len(meshes)) - (len(meshes) - 1) / 2) * width * (1 + hm["gap"])
+    aspect = len(meshes)
+
     fig = k3d.plot(height=800, grid_visible=False, axes_helper=0, menu_visibility=False,
                    background_color=0xffffff, camera_auto_fit=False, camera_fov=1.0)
     for (verts, faces, k), dx in zip(meshes, offsets):
-        shift = np.array([dx, 0, 0], dtype=np.float32)
+        shift = (dx * right).astype(np.float32)
         fig += k3d.mesh(verts + shift, faces, attribute=k, color_range=list(hm["color_range"]),
                         color_map=k3d.basic_color_maps.Jet, side='double', flat_shading=False)
-        fig += k3d.points(task.pts_boundary.cpu().numpy().astype(np.float32) + shift, color=0x00ff00, point_size=0.08)
+        fig += k3d.points(task.pts_boundary.cpu().numpy().astype(np.float32) + shift, color=0x00ff00, point_size=0.02 * width)
     ## Fit the scene horizontally: half width / tan(half horizontal fov)
     distance = 0.55 * (offsets[-1] - offsets[0] + width) / (aspect * np.tan(np.deg2rad(0.5)))
-    e = np.deg2rad(hm["elevation"])
-    fig.camera = [0, -distance * np.cos(e), distance * np.sin(e),  0, 0, 0,  0, 0, 1]
+    fig.camera = [float(c) for c in [*(center + distance * view), *center, 0, 0, 1]]
     return fig
 
 
@@ -119,7 +123,7 @@ if __name__ == "__main__":
     k3d_dir = os.path.join(exp_dir, "k3d")
     os.makedirs(k3d_dir, exist_ok=True)
     os.makedirs(PAPER_FIGURES_DIR, exist_ok=True)
-    runs = load_runs(exp_dir, ORDER, args.seed)
+    runs = load_runs(exp_dir, task.figure_opts, args.seed)
     prefix = args.task if args.exp == "main" else f"{args.task}_{args.exp.replace('/', '_')}"
     out = lambda name: [os.path.join(PAPER_FIGURES_DIR, f"{prefix}_{name}.{ext}") for ext in ["png", "pdf"]]
 
@@ -131,9 +135,9 @@ if __name__ == "__main__":
     meshes = {opt: curvature_mesh(task, os.path.join(exp_dir, f"{opt}_seed{args.seed}")) for opt in runs}
     for opt, mesh in meshes.items():
         with open(os.path.join(k3d_dir, f"heatmap_{opt}.html"), "w") as f:
-            f.write(k3d_scene(task, [mesh], aspect=1.5).get_snapshot())
+            f.write(k3d_scene(task, [mesh]).get_snapshot())
     html_path = os.path.join(k3d_dir, "heatmap.html")
     with open(html_path, "w") as f:
         f.write(k3d_scene(task, list(meshes.values())).get_snapshot())
-    heatmap_figure(k3d_screenshot(html_path, 2400, 800), task.heatmap["color_range"], out("heatmap"))
+    heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap["color_range"], out("heatmap"))
     print("Heatmap order (left to right):", ", ".join(LABELS[opt] for opt in meshes))

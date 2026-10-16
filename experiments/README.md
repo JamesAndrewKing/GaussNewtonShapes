@@ -10,13 +10,15 @@ The experiment plan is in `review_files/revision_plan.md`.
 | `run.py` | Train one optimizer on one task and save the run |
 | `plot.py` | Compare runs of one task, optionally against the curves stored for the paper (diagnostics) |
 | `figures.py` | Make the paper figures from finished runs into `paper_figures/` |
+| `evaluate.py` | Recompute the best/final metrics of finished runs from their checkpoints (e.g. after adding a metric) |
 | `metrics.py` | Error metrics shared by all tasks |
-| `tasks/` | One class per problem (from the notebooks): data, residuals, resampling, evaluation, figure settings |
+| `tasks/` | One class per problem (from the notebooks): data, residuals, resampling, evaluation, figure settings. `curvature_task.py` is shared by `catenoid`, `enneper` and `cone` |
 
 ```
-python -m experiments.run     --task catenoid --opt gn --seed 0 --budget 1200
-python -m experiments.plot    --task catenoid --paper
-python -m experiments.figures --task catenoid
+python -m experiments.run      --task catenoid --opt gn --seed 0 --budget 1200
+python -m experiments.plot     --task catenoid --paper
+python -m experiments.figures  --task catenoid
+python -m experiments.evaluate --task catenoid --exp main
 ```
 
 Options of `run.py`: `--exp` (experiment group, default `main`), `--tag` (suffix of the run name), `--task-args key=value` (e.g. `init_radius=2.0`), `--opt-args key=value` (e.g. `lr=1e-2`), `--resample-in-closure` (LBFGS only), `--eval-every` (seconds).
@@ -40,9 +42,43 @@ experiments/results/                  not tracked: raw outputs
     archive/<exp>/                    diagnostic or superseded runs, each with a README of what was found
 ```
 
+## Metrics
+
+Computed by each task's `evaluate()` and stored in `evals.json`. All distances are RMS values (square root of the mean squared distance), as for CD₁ in Appendix C.
+
+**Sampling.** Model surface samples come from a binary search on a 100k-point grid in the task's sampling box, followed by an orthogonal Newton projection onto {f = 0} (Appendix B). Only converged points (|f| < 1e-8) are kept. True surface samples are a 64 × 128 grid of the parametrization over the region of interest. The *region of interest* is the part of space where the true solution is defined:
+
+| Task | Region of interest | True surface |
+|---|---|---|
+| catenoid | \|z\| ≤ h (between the rings) | catenoid patch |
+| enneper | above or below the patch r ≤ 0.9 in xy, within ±0.1 of it in z | Enneper patch r ≤ 0.9 |
+| cone | 0 ≤ z ≤ 1 | mantle of the truncated cone |
+
+**Definitions.**
+
+| Key | Definition |
+|---|---|
+| `loss` | Reported loss: sum of the unweighted interface and curvature losses ½·mean(r²); the eikonal term is excluded. Evaluated before each step |
+| `cd_t2m` | Truth → model: RMS of ‖x − P(x)‖ over the true samples x, where P is the Newton projection onto the model surface. `t2m_converged` is the fraction of converged projections |
+| `cd_m2t` | Model → truth: RMS of the exact distance from the model samples in the region of interest to the true patch |
+| `cd` | Two-sided Chamfer distance: (`cd_t2m` + `cd_m2t`) / 2 |
+| `hausdorff` | Largest distance in either direction (over the samples) |
+| `cd1_paper` | One-sided CD₁ of Appendix C (`util.error_metrics.chamfer_div`), to compare with the submitted figures |
+| `interface_rms`, `interface_max` | Distance of the boundary curve points to the model surface (Newton projection) |
+| `curv_rms`, `curv_max` | \|κ\| on the model samples in the region of interest, with κ = κ_H (catenoid, Enneper) or κ_G (cone) |
+| `curv_box_rms`, `curv_box_max` | The same on all model samples in the sampling box |
+| `area` | Area of the model surface in the region of interest (best and final models only) |
+| `area_err_analytic` | `area` / analytic area − 1 |
+| `area_err_discrete` | `area` / area of the true surface discretized the same way − 1. Discretization errors cancel, so this is the more accurate of the two |
+
+**Exact distances to the true surface.** Catenoid: Newton along the profile curve of the surface of revolution. Cone: distance in the (ρ, z) plane to the profile segment. Enneper: Gauss-Newton on the parametrization (u, v), started from the inverse of (u, v) → (x, y), and kept on the disc r ≤ 0.9.
+
+**Areas.** Catenoid and cone: marching-cubes mesh (N = 256) sliced at the planes that bound the region; the true surface is meshed from its analytic level set in the same way. Enneper: the patch is a graph over the xy-plane, so the area is a quadrature over a 600² xy-grid of |∇f| / |∂f/∂z| (model) and of the exact area element (1 + r²)/(1 − r²) (true surface), with the same grid and mask for both.
+
 ## Conventions
 
 - The clock only runs during the optimizer steps, including surface resampling. Evaluation, logging and best-model tracking happen with the clock paused.
 - Tables and heatmaps use the best model (lowest reported loss); the final model is kept in `evals.json` as well.
 - Each optimizer's default settings for a task are in the task's `opt_defaults`. They are the settings that produced the paper figures, which in some cases differ from the current notebooks (see `archive/lbfgs_settings`).
 - All runs of one seed start from the same pretrained model.
+- If the surface leaves the sampling box or the region of interest, the affected loss terms and metrics are nan rather than an error, so such runs count as failures.

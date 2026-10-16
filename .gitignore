@@ -41,3 +41,5 @@ notebooks/gridap_linear_elasticity.ipynb
 notebooks/gridap_test.ipynb
 notebooks/results.vtu
 notebooks/solid.json
+
+experiments/results/

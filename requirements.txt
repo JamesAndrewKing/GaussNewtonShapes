@@ -21,3 +21,4 @@ einops==0.8.1
 wandb==0.17.1
 scikit-image==0.25.2
 trimesh[easy]==4.6.6
+selenium==4.51.0  # only for experiments/figures.py (renders k3d scenes headlessly)

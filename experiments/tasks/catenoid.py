@@ -15,10 +15,14 @@ from experiments.metrics import project_to_model, chamfer, curvature_stats, clip
 class Catenoid:
     loss_keys = ["data", "mean_curvature"]  ## terms of the reported loss
     paper_data = "notebooks/Data Catenoid/{}_over_time_catenoid_{}.pth"  ## stored paper runs: metric, optimizer
+    heatmap = dict(  ## curvature heatmap of the best surfaces (Figure 1a)
+        residual="_mean_curvature", color_range=(0, 0.002), elevation=20,
+        bbox_min=(-2, -2, -1.25), bbox_max=(2, 2, 1.25),
+    )
     opt_defaults = {
         "gn":    dict(lr=1e-1, regularization=1e-6, do_line_search=False),
         "adam":  dict(lr=1e-3),
-        "lbfgs": dict(lr=1e-1, max_iter=20, history_size=10),
+        "lbfgs": dict(),  ## torch defaults (lr=1, max_iter=20, history_size=100), as for the paper figure
     }
 
     def __init__(self, c=1.0, h=1.0, init_radius=1.0):

@@ -3,7 +3,7 @@ Run one optimizer on one task, e.g.
 
     python -m experiments.run --task catenoid --opt gn --seed 0 --budget 600
 
-Writes to experiments/results/<task>/<opt>_seed<seed>/:
+Writes to experiments/results/<task>/<exp>/<opt><tag><task args>_seed<seed>/:
     config.json  run settings
     log.json     reported loss and unweighted loss terms at every iteration
     evals.json   error metrics every --eval-every seconds of training time, and at the end
@@ -76,11 +76,16 @@ def make_optimizer(name, model, res_terms, **kwargs):
     raise ValueError(f"Unknown optimizer {name}")
 
 
-def train_step(optim, params, res_terms):
-    """One optimizer step. Returns the unweighted losses at the parameters before the step."""
+def train_step(optim, params, res_terms, update):
+    """
+    One optimizer step. Returns the unweighted losses at the parameters before the step.
+    update() resamples the moving points; for LBFGS it may instead be called in every closure evaluation.
+    """
     if isinstance(optim, torch.optim.LBFGS):
         losses = {}
         def closure():
+            if update:
+                update()
             optim.zero_grad()
             loss, unweighted_losses = compute_loss(params, res_terms, return_unweighted_losses=True)
             loss.backward()
@@ -95,15 +100,18 @@ def train_step(optim, params, res_terms):
     return unweighted_losses
 
 
-def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt_args={}, device="cuda", tag=""):
+def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt_args={}, device="cuda", tag="",
+        resample_in_closure=False, exp="main"):
     torch.set_default_device(device)
     task = TASKS[task_name](**task_args)
-    task_dir = os.path.join(RESULTS_DIR, task_name + "".join(f"_{k}{v}" for k, v in task_args.items()))
-    out_dir = os.path.join(task_dir, f"{opt_name}{tag}_seed{seed}")
+    args_str = "".join(f"_{k}{v}" for k, v in task_args.items())
+    out_dir = os.path.join(RESULTS_DIR, task_name, exp, f"{opt_name}{tag}{args_str}_seed{seed}")
+    pretrained_dir = os.path.join(RESULTS_DIR, task_name, "pretrained")
     os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(pretrained_dir, exist_ok=True)
 
     torch.manual_seed(seed)
-    model = pretrain(task, seed, os.path.join(task_dir, f"pretrained_seed{seed}.pt"))
+    model = pretrain(task, seed, os.path.join(pretrained_dir, f"seed{seed}{args_str}.pt"))
     params = model.params
     res_lib = ResidualLibrary(model)
     res_terms = task.res_terms(res_lib)
@@ -112,6 +120,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
 
     config = dict(
         task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget,
+        resample_in_closure=resample_in_closure,
         n_params=sum(p.numel() for p in model.parameters()),
         device=torch.cuda.get_device_name(0), torch=torch.__version__,
         commit=subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip(),
@@ -131,8 +140,12 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
             break
 
         clock.start()
-        task.update(res_terms, model, i)
-        unweighted_losses = train_step(optim, params, res_terms)
+        update = lambda: task.update(res_terms, model, i)
+        if resample_in_closure:
+            unweighted_losses = train_step(optim, params, res_terms, update)
+        else:
+            update()
+            unweighted_losses = train_step(optim, params, res_terms, None)
         clock.stop()
 
         loss = sum(unweighted_losses[k].item() for k in task.loss_keys)
@@ -166,8 +179,10 @@ if __name__ == "__main__":
     parser.add_argument("--eval-every", type=float, default=5, help="seconds of training time between evaluations")
     parser.add_argument("--task-args", nargs="*", default=[], help="e.g. init_radius=2.0")
     parser.add_argument("--opt-args", nargs="*", default=[], help="e.g. lr=1e-2")
+    parser.add_argument("--exp", default="main", help="experiment group, i.e. subdirectory of results/<task>")
     parser.add_argument("--tag", default="", help="suffix for the run directory, e.g. for sweeps")
+    parser.add_argument("--resample-in-closure", action="store_true", help="LBFGS: resample in every closure evaluation")
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
     run(args.task, args.opt, args.seed, args.budget, args.eval_every,
-        parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag)
+        parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag, args.resample_in_closure, args.exp)

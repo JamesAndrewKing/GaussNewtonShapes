@@ -31,13 +31,25 @@ from util.visualization.utils_mesh import get_mesh
 from experiments.run import RESULTS_DIR
 from experiments.tasks import TASKS
 from experiments.plot import LABELS, load_runs, plot_over_time
+from experiments.metrics import largest_component
 
 PAPER_FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "paper_figures")
 
 
-def to_z_up(task, x):
-    """Rotate shapes whose up axis is y (task.heatmap["up"]) so that z is up for the camera."""
-    return x[:, [0, 2, 1]] * np.array([1, -1, 1], dtype=x.dtype) if task.heatmap.get("up") == "y" else x
+def rotation(axis, degrees):
+    c, s = np.cos(np.deg2rad(degrees)), np.sin(np.deg2rad(degrees))
+    i, j = [(1, 2), (2, 0), (0, 1)]["xyz".index(axis)]
+    R = np.eye(3)
+    R[i, i], R[i, j], R[j, i], R[j, j] = c, -s, s, c
+    return R
+
+
+def display_orientation(task, x):
+    """Apply the display rotations task.heatmap["rotate"] = [(axis, degrees), ...] in order (z is up for the camera)."""
+    R = np.eye(3)
+    for axis, degrees in task.heatmap.get("rotate", []):
+        R = rotation(axis, degrees) @ R
+    return (x @ R.T).astype(x.dtype)
 
 
 def surface_mesh(task, run_dir, N=256):
@@ -46,12 +58,15 @@ def surface_mesh(task, run_dir, N=256):
     model.load_state_dict(torch.load(os.path.join(run_dir, "best.pt")))
     bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in task.mesh_bbox)
     verts, faces = get_mesh(lambda x: model(x.double()), N=N, device='cuda', bbox_min=bbox_min, bbox_max=bbox_max, chunks=2)
+    if getattr(task, "largest_component_only", False):
+        component = largest_component(verts, faces)[0]
+        verts, faces = np.asarray(component.vertices), np.asarray(component.faces)
     k = None
     if hasattr(task, "curvature"):
         residual = getattr(ResidualLibrary(model), "_" + task.curvature)
         k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
         k = k.abs().detach().cpu().numpy().astype(np.float32)
-    return to_z_up(task, verts.astype(np.float32)), faces.astype(np.uint32), k
+    return display_orientation(task, verts.astype(np.float32)), faces.astype(np.uint32), k
 
 
 def k3d_scene(task, meshes):
@@ -80,7 +95,7 @@ def k3d_scene(task, meshes):
             fig += k3d.mesh(verts + shift, faces, attribute=k, color_range=list(hm["color_range"]),
                             color_map=k3d.basic_color_maps.Jet, side='double', flat_shading=False)
         if hasattr(task, "pts_boundary"):
-            pts = to_z_up(task, task.pts_boundary.cpu().numpy().astype(np.float32))
+            pts = display_orientation(task, task.pts_boundary.cpu().numpy().astype(np.float32))
             fig += k3d.points(pts + shift, color=0x00ff00, point_size=0.02 * width)
     ## Fit the scene horizontally: half width / tan(half horizontal fov)
     distance = 0.55 * (offsets[-1] - offsets[0] + width) / (aspect * np.tan(np.deg2rad(0.5)))

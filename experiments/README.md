@@ -57,6 +57,10 @@ Computed by each task's `evaluate()` and stored in `evals.json`. All distances a
 
 For the implicit shapes, the true samples are 20k points sampled on the mesh (fixed seed), and the model → truth distances are exact closest-point distances to the mesh (trimesh).
 
+**Spurious components (implicit shapes).** The model surface can have small extra components away from the data, outside or inside the shape, and they depend on the seed. The figures show only the largest connected component (by area) of the marching-cubes surface, and the model-side metrics (`cd_m2t`, `cd`, `hausdorff`, `normal_consistency`) use only model samples on it (nearest vertex of a 128³ marching-cubes mesh of the sampling box). The unfiltered values are kept with the suffix `_all`, together with `n_components` and `removed_area_fraction` (area of the discarded components / total area). The truth → model distances and the point-to-surface error are not affected.
+
+**Holes in the scan (implicit shapes).** The bunny mesh is open at its base (5 holes). Every model closes the holes, and there is no reference surface there. Model samples whose closest point on the mesh lies on an open boundary edge (tolerance 1e-7) are left out of the model-side metrics; `over_hole_fraction` is the fraction left out. The rule has no free radius on purpose: larger radii (e.g. 0.1) remove ~11% of the samples and favor GN. Watertight meshes (rocker arm) are not affected.
+
 **Definitions.**
 
 | Key | Definition |

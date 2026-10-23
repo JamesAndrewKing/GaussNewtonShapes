@@ -87,9 +87,11 @@ if __name__ == "__main__":
 
     plot_over_time(runs, "loss", "Loss", [os.path.join(out_dir, "loss_over_time.png")], paper("loss"))
     plot_over_time(runs, "cd", "Two-sided Chamfer", [os.path.join(out_dir, "cd_over_time.png")])
-    plot_over_time(runs, "cd1_paper", "$CD_1$", [os.path.join(out_dir, "cd1_paper_over_time.png")], paper("chamf"))
+    if all("cd1_paper" in evals["best"] for _, evals in runs.values()):
+        plot_over_time(runs, "cd1_paper", "$CD_1$", [os.path.join(out_dir, "cd1_paper_over_time.png")], paper("chamf"))
 
-    table = f"## Best model (lowest loss)\n\n{metrics_table(runs, 'best')}\n\n## Final model\n\n{metrics_table(runs, 'final')}\n"
+    keys = TASKS[args.task].table_keys
+    table = f"## Best model (lowest loss)\n\n{metrics_table(runs, 'best', keys)}\n\n## Final model\n\n{metrics_table(runs, 'final', keys)}\n"
     with open(os.path.join(out_dir, "metrics.md"), "w") as f:
         f.write(table)
     print(table)

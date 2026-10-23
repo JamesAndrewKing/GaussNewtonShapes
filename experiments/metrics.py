@@ -6,6 +6,7 @@ Task-specific parts (exact distance to the true surface, true surface samples) l
 import numpy as np
 import torch
 import trimesh
+from scipy.spatial import cKDTree
 from torch.func import vmap
 from util.visualization.utils_mesh import get_mesh
 
@@ -50,6 +51,25 @@ def curvature_stats(residual, params, pts, prefix):
     """RMS and max of a curvature residual (e.g. res_lib._mean_curvature) on surface points."""
     k = vmap(residual, in_dims=(None, 0))(params, pts).reshape(-1).abs()
     return {f"{prefix}_rms": rms(k), f"{prefix}_max": maximum(k)}
+
+
+def largest_component(verts, faces):
+    """
+    Largest connected component (by area) of a marching-cubes mesh.
+    Returns the component as a trimesh, a function telling which points lie on it (nearest vertex), the number of
+    components and the area fraction of the discarded ones.
+    """
+    mesh = trimesh.Trimesh(verts, faces)
+    mesh.merge_vertices()  ## join the duplicate vertices at the seams of chunked marching cubes
+    labels = trimesh.graph.connected_component_labels(mesh.face_adjacency, node_count=len(mesh.faces))
+    areas = np.bincount(labels, weights=mesh.area_faces)
+    main = areas.argmax()
+    vertex_on_main = np.zeros(len(mesh.vertices), dtype=bool)
+    vertex_on_main[mesh.faces[labels == main].ravel()] = True
+    tree = cKDTree(mesh.vertices)
+    on_main = lambda pts: vertex_on_main[tree.query(pts)[1]]
+    component = mesh.submesh([np.flatnonzero(labels == main)], append=True)
+    return component, on_main, len(areas), 1 - areas[main] / areas.sum()
 
 
 def clipped_mesh_area(f, bbox_min, bbox_max, z_range, N=256, chunks=2):

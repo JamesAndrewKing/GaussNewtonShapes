@@ -19,5 +19,11 @@ Nothing is retrained. The runs themselves are in `experiments/results/<task>/mai
 | `cone_heatmap.{pdf,png}` | 3a | \|κ_G\| on the best surfaces of Adam and GN; colorbar 0–0.005 |
 | `cone_loss.{pdf,png}` | 3b | Loss over time (Adam, GN; LBFGS diverges) |
 | `cone_chamfer.{pdf,png}` | new | Two-sided Chamfer distance over time (the submitted version has no error plot for the cone) |
+| `rockerarm_surfaces.{pdf,png}` | 4a | Best surfaces of Adam, LBFGS and GN |
+| `rockerarm_loss.{pdf,png}` | 4b | Loss over time |
+| `rockerarm_chamfer.{pdf,png}` | new | Two-sided Chamfer distance to the ground-truth mesh over time |
+| `bunny_surfaces.{pdf,png}` | 5a | Best surfaces of Adam, LBFGS and GN |
+| `bunny_loss.{pdf,png}` | 5b | Loss over time |
+| `bunny_chamfer.{pdf,png}` | new | Two-sided Chamfer distance to the ground-truth mesh over time |
 
 Figures from experiments other than `main` are prefixed `<task>_<exp>_`.

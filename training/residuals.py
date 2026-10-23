@@ -85,9 +85,16 @@ class ResidualLibrary:
         return self._grad_x_f(params, x).squeeze(1).square().sum(1).sqrt() - 1
 
     def _normal(self, params, x, true_normal):
+        ## <grad f / |grad f|, n> - 1 as in Table 1 of the paper. Keep the normalization: without it the residual also
+        ## forces |<grad f, n>| = 1 on the data points, which fits the implicit neural shapes ~3x worse (review_files/progress.md, 23 Oct 2026)
         g = self._grad_x_f(params, x).squeeze(1)
-        pred_normal = g #/ g.norm(p=2)
+        pred_normal = g / g.norm(p=2)
         return (torch.dot(pred_normal.squeeze(0), true_normal) - 1).unsqueeze(-1)
+
+    def _normal_unnormalized(self, params, x, true_normal):
+        ## <grad f, n> - 1, used for the jet engine bracket results (to be compared with _normal there)
+        g = self._grad_x_f(params, x).squeeze(1)
+        return (torch.dot(g.squeeze(0), true_normal) - 1).unsqueeze(-1)
 
     def _laplacian(self, params, x, val=None):
         h = self._hess_x_f(params, x).squeeze(1)

@@ -20,7 +20,6 @@ from experiments.tasks import TASKS
 
 LABELS = {"adam": "Adam", "lbfgs": "LBFGS", "gn": "GN"}
 COLORS = {opt: plt.get_cmap('tab10')(i) for i, opt in enumerate(LABELS)}
-TABLE_KEYS = ["loss", "cd", "cd_t2m", "cd_m2t", "hausdorff", "interface_rms", "curv_rms", "curv_max", "area_err_discrete"]
 
 
 def split_name(name):
@@ -63,11 +62,11 @@ def plot_over_time(runs, key, ylabel, paths, paper_file=None):
     plt.close(fig)
 
 
-def metrics_table(runs, which):
-    rows = ["| | " + " | ".join(TABLE_KEYS) + " |", "|---" * (len(TABLE_KEYS) + 1) + "|"]
+def metrics_table(runs, which, keys):
+    rows = ["| | " + " | ".join(keys) + " |", "|---" * (len(keys) + 1) + "|"]
     for name, (_, evals) in runs.items():
         m = evals[which]
-        rows.append(f"| {split_name(name)[1]} | " + " | ".join(f"{m[k]:.2e}" if k in m else "-" for k in TABLE_KEYS) + " |")
+        rows.append(f"| {split_name(name)[1]} | " + " | ".join(f"{m[k]:.2e}" if k in m else "-" for k in keys) + " |")
     return "\n".join(rows)
 
 

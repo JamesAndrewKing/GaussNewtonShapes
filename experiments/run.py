@@ -66,9 +66,9 @@ def pretrain(task, seed, path, n_samples=10_000, n_iters=1000):
     return model
 
 
-def make_optimizer(name, model, res_terms, **kwargs):
+def make_optimizer(name, model, res_terms, gn_class=GaussNewton, **kwargs):
     if name == "gn":
-        return GaussNewton(model, res_terms, **kwargs)
+        return gn_class(model, res_terms, **kwargs)
     if name == "adam":
         return torch.optim.Adam(model.parameters(), **kwargs)
     if name == "lbfgs":
@@ -101,9 +101,11 @@ def train_step(optim, params, res_terms, update):
 
 
 def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt_args={}, device="cuda", tag="",
-        resample_in_closure=False, exp="main"):
+        resample_in_closure=False, exp="main", freeze_samples=False, task_attrs={}):
     torch.set_default_device(device)
     task = TASKS[task_name](**task_args)
+    for k, v in task_attrs.items():  ## e.g. eikonal_weights={"lbfgs": 0.1}; dicts are merged into the task's
+        setattr(task, k, {**getattr(task, k), **v} if isinstance(v, dict) else v)
     args_str = "".join(f"_{k}{v}" for k, v in task_args.items())
     out_dir = os.path.join(RESULTS_DIR, task_name, exp, f"{opt_name}{tag}{args_str}_seed{seed}")
     pretrained_dir = os.path.join(RESULTS_DIR, task_name, "pretrained")
@@ -116,11 +118,11 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     res_lib = ResidualLibrary(model)
     res_terms = task.res_terms(res_lib, opt_name)
     opt_kwargs = {**task.opt_defaults[opt_name], **opt_args}
-    optim = make_optimizer(opt_name, model, res_terms, **opt_kwargs)
+    optim = make_optimizer(opt_name, model, res_terms, getattr(task, "gn_class", GaussNewton), **opt_kwargs)
 
     config = dict(
         task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget,
-        resample_in_closure=resample_in_closure,
+        resample_in_closure=resample_in_closure, freeze_samples=freeze_samples, task_attrs=task_attrs,
         n_params=sum(p.numel() for p in model.parameters()),
         device=torch.cuda.get_device_name(0), torch=torch.__version__,
         commit=subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip(),
@@ -141,7 +143,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
             break
 
         clock.start()
-        update = lambda: task.update(res_terms, model, i)
+        update = lambda: task.update(res_terms, model, i, resample=not freeze_samples or i == 0)
         if resample_in_closure:
             unweighted_losses = train_step(optim, params, res_terms, update)
         else:
@@ -184,7 +186,10 @@ if __name__ == "__main__":
     parser.add_argument("--exp", default="main", help="experiment group, i.e. subdirectory of results/<task>")
     parser.add_argument("--tag", default="", help="suffix for the run directory, e.g. for sweeps")
     parser.add_argument("--resample-in-closure", action="store_true", help="LBFGS: resample in every closure evaluation")
+    parser.add_argument("--freeze-samples", action="store_true", help="sample the moving points once and keep them fixed")
+    parser.add_argument("--task-attrs", nargs="*", default=[], help='override task attributes, e.g. eikonal_weights={"lbfgs":0.1}')
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
     run(args.task, args.opt, args.seed, args.budget, args.eval_every,
-        parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag, args.resample_in_closure, args.exp)
+        parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag, args.resample_in_closure, args.exp,
+        args.freeze_samples, parse_kv(args.task_attrs))

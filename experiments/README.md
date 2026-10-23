@@ -21,7 +21,7 @@ python -m experiments.figures  --task catenoid
 python -m experiments.evaluate --task catenoid --exp main
 ```
 
-Options of `run.py`: `--exp` (experiment group, default `main`), `--tag` (suffix of the run name), `--task-args key=value` (e.g. `init_radius=2.0`), `--opt-args key=value` (e.g. `lr=1e-2`), `--resample-in-closure` (LBFGS only), `--eval-every` (seconds).
+Options of `run.py`: `--exp` (experiment group, default `main`), `--tag` (suffix of the run name), `--task-args key=value` (e.g. `init_radius=2.0`), `--opt-args key=value` (e.g. `lr=1e-2`), `--resample-in-closure` (LBFGS only), `--freeze-samples` (sample the moving points once and keep them), `--task-attrs key=value` (override task settings, e.g. `eikonal_weights={"lbfgs":0.1}`; dicts are merged), `--eval-every` (seconds).
 
 ## Where things are saved
 
@@ -53,6 +53,9 @@ Computed by each task's `evaluate()` and stored in `evals.json`. All distances a
 | catenoid | \|z\| ≤ h (between the rings) | catenoid patch |
 | enneper | above or below the patch r ≤ 0.9 in xy, within ±0.1 of it in z | Enneper patch r ≤ 0.9 |
 | cone | 0 ≤ z ≤ 1 | mantle of the truncated cone |
+| rockerarm, bunny | the sampling box (bounding box of the points ± 0.1) | the ground-truth mesh, normalized like the training data (centered, max vertex norm 1) |
+
+For the implicit shapes, the true samples are 20k points sampled on the mesh (fixed seed), and the model → truth distances are exact closest-point distances to the mesh (trimesh).
 
 **Definitions.**
 
@@ -64,7 +67,10 @@ Computed by each task's `evaluate()` and stored in `evals.json`. All distances a
 | `cd` | Two-sided Chamfer distance: (`cd_t2m` + `cd_m2t`) / 2 |
 | `hausdorff` | Largest distance in either direction (over the samples) |
 | `cd1_paper` | One-sided CD₁ of Appendix C (`util.error_metrics.chamfer_div`), to compare with the submitted figures |
-| `interface_rms`, `interface_max` | Distance of the boundary curve points to the model surface (Newton projection) |
+| `interface_rms`, `interface_max` | Distance of the boundary curve points (implicit shapes: the training points, i.e. point-to-surface error) to the model surface (Newton projection) |
+| `normal_consistency` | Implicit shapes: mean of ⟨∇f/‖∇f‖, n⟩ over the model samples, with n the mesh face normal at the closest point (1 is perfect) |
+| `eikonal_rms` | Implicit shapes: RMS of ‖∇f‖ − 1 over 20k fixed uniform points in the bounding box of the points ± 0.2 |
+| `held_out_rms` | Implicit shapes with `subsample_fraction` < 1: distance of the held-out vertices to the model surface |
 | `curv_rms`, `curv_max` | \|κ\| on the model samples in the region of interest, with κ = κ_H (catenoid, Enneper) or κ_G (cone) |
 | `curv_box_rms`, `curv_box_max` | The same on all model samples in the sampling box |
 | `area` | Area of the model surface in the region of interest (best and final models only) |

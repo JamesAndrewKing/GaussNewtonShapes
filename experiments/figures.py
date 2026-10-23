@@ -6,9 +6,10 @@ Paper figures from finished runs (no training), e.g.
 Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for exp != main):
     <prefix>_loss.{png,pdf}, <prefix>_chamfer.{png,pdf}   training curves
     <prefix>_heatmap.{png,pdf}                            curvature of the best surfaces side by side, with colorbar
+                                                          (<prefix>_surfaces: plain surfaces, for tasks without a curvature)
 and the interactive scenes to experiments/results/<task>/<exp>/k3d/:
-    heatmap.html                                          the scene of <prefix>_heatmap
-    heatmap_<opt>.html                                    one optimizer per file (e.g. for the README)
+    heatmap.html / surfaces.html                          the scene of the figure above
+    heatmap_<opt>.html / surfaces_<opt>.html              one optimizer per file (e.g. for the README)
 The PNG of the k3d scene is rendered with headless Chrome via selenium.
 """
 
@@ -34,15 +35,23 @@ from experiments.plot import LABELS, load_runs, plot_over_time
 PAPER_FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "paper_figures")
 
 
-def curvature_mesh(task, run_dir, N=256):
-    """Marching-cubes mesh of the best model with |curvature| as vertex attribute."""
+def to_z_up(task, x):
+    """Rotate shapes whose up axis is y (task.heatmap["up"]) so that z is up for the camera."""
+    return x[:, [0, 2, 1]] * np.array([1, -1, 1], dtype=x.dtype) if task.heatmap.get("up") == "y" else x
+
+
+def surface_mesh(task, run_dir, N=256):
+    """Marching-cubes mesh of the best model, with |curvature| as vertex attribute if the task has a curvature."""
     model = task.model()
     model.load_state_dict(torch.load(os.path.join(run_dir, "best.pt")))
     bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in task.mesh_bbox)
     verts, faces = get_mesh(lambda x: model(x.double()), N=N, device='cuda', bbox_min=bbox_min, bbox_max=bbox_max, chunks=2)
-    residual = getattr(ResidualLibrary(model), "_" + task.curvature)
-    k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
-    return verts.astype(np.float32), faces.astype(np.uint32), k.abs().detach().cpu().numpy().astype(np.float32)
+    k = None
+    if hasattr(task, "curvature"):
+        residual = getattr(ResidualLibrary(model), "_" + task.curvature)
+        k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
+        k = k.abs().detach().cpu().numpy().astype(np.float32)
+    return to_z_up(task, verts.astype(np.float32)), faces.astype(np.uint32), k
 
 
 def k3d_scene(task, meshes):
@@ -65,9 +74,14 @@ def k3d_scene(task, meshes):
                    background_color=0xffffff, camera_auto_fit=False, camera_fov=1.0)
     for (verts, faces, k), dx in zip(meshes, offsets):
         shift = (dx * right).astype(np.float32)
-        fig += k3d.mesh(verts + shift, faces, attribute=k, color_range=list(hm["color_range"]),
-                        color_map=k3d.basic_color_maps.Jet, side='double', flat_shading=False)
-        fig += k3d.points(task.pts_boundary.cpu().numpy().astype(np.float32) + shift, color=0x00ff00, point_size=0.02 * width)
+        if k is None:
+            fig += k3d.mesh(verts + shift, faces, color=0xbbbbbb, side='double', flat_shading=False)
+        else:
+            fig += k3d.mesh(verts + shift, faces, attribute=k, color_range=list(hm["color_range"]),
+                            color_map=k3d.basic_color_maps.Jet, side='double', flat_shading=False)
+        if hasattr(task, "pts_boundary"):
+            pts = to_z_up(task, task.pts_boundary.cpu().numpy().astype(np.float32))
+            fig += k3d.points(pts + shift, color=0x00ff00, point_size=0.02 * width)
     ## Fit the scene horizontally: half width / tan(half horizontal fov)
     distance = 0.55 * (offsets[-1] - offsets[0] + width) / (aspect * np.tan(np.deg2rad(0.5)))
     fig.camera = [float(c) for c in [*(center + distance * view), *center, 0, 0, 1]]
@@ -96,15 +110,19 @@ def k3d_screenshot(html_path, width, height, scale=2):
 
 
 def heatmap_figure(img, color_range, paths, width=7.0):
-    """The rendered scene with a colorbar on the left (Figure 1a)."""
+    """The rendered scene, with a colorbar on the left if color_range is given (Figure 1a)."""
     with plt.rc_context({"font.family": "serif", "font.serif": ["cmr10"], "axes.formatter.use_mathtext": True}):
-        fig = plt.figure(figsize=(width, 0.9 * width * img.height / img.width))
-        ax_cbar = fig.add_axes([0.02, 0.12, 0.015, 0.76])
-        ax_img = fig.add_axes([0.13, 0.0, 0.87, 1.0])
+        if color_range is None:
+            fig = plt.figure(figsize=(width, width * img.height / img.width))
+            ax_img = fig.add_axes([0, 0, 1, 1])
+        else:
+            fig = plt.figure(figsize=(width, 0.9 * width * img.height / img.width))
+            ax_img = fig.add_axes([0.13, 0.0, 0.87, 1.0])
+            ax_cbar = fig.add_axes([0.02, 0.12, 0.015, 0.76])
+            fig.colorbar(plt.cm.ScalarMappable(norm=Normalize(*color_range), cmap="jet"), cax=ax_cbar,
+                         ticks=np.linspace(*color_range, 6))
         ax_img.imshow(img)
         ax_img.axis("off")
-        fig.colorbar(plt.cm.ScalarMappable(norm=Normalize(*color_range), cmap="jet"), cax=ax_cbar,
-                     ticks=np.linspace(*color_range, 6))
         for path in paths:
             fig.savefig(path, dpi=300)
         plt.close(fig)
@@ -131,13 +149,14 @@ if __name__ == "__main__":
     plot_over_time(runs, "loss", "Loss", out("loss"))
     plot_over_time(runs, "cd", "Chamfer distance", out("chamfer"))
 
-    ## Curvature heatmaps
-    meshes = {opt: curvature_mesh(task, os.path.join(exp_dir, f"{opt}_seed{args.seed}")) for opt in runs}
+    ## Best surfaces side by side: curvature heatmaps, or plain surfaces
+    name = "heatmap" if hasattr(task, "curvature") else "surfaces"
+    meshes = {opt: surface_mesh(task, os.path.join(exp_dir, f"{opt}_seed{args.seed}")) for opt in runs}
     for opt, mesh in meshes.items():
-        with open(os.path.join(k3d_dir, f"heatmap_{opt}.html"), "w") as f:
+        with open(os.path.join(k3d_dir, f"{name}_{opt}.html"), "w") as f:
             f.write(k3d_scene(task, [mesh]).get_snapshot())
-    html_path = os.path.join(k3d_dir, "heatmap.html")
+    html_path = os.path.join(k3d_dir, f"{name}.html")
     with open(html_path, "w") as f:
         f.write(k3d_scene(task, list(meshes.values())).get_snapshot())
-    heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap["color_range"], out("heatmap"))
-    print("Heatmap order (left to right):", ", ".join(LABELS[opt] for opt in meshes))
+    heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap.get("color_range"), out(name))
+    print(f"{name} order (left to right):", ", ".join(LABELS[opt] for opt in meshes))

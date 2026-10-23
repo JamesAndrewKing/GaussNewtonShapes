@@ -23,6 +23,7 @@ class CurvatureTask:
         "lbfgs": dict(),  ## torch defaults (lr=1, max_iter=20, history_size=100)
     }
     figure_opts = ["adam", "lbfgs", "gn"]  ## optimizers shown in the paper figures, left to right
+    table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "hausdorff", "interface_rms", "curv_rms", "curv_max", "area_err_discrete"]
     pretrain_extent = 1.0  ## pretraining points in [-extent, extent]^3
     sample_extent = 1.0    ## surface samples (training and evaluation) in [-extent, extent]^3
 
@@ -56,10 +57,12 @@ class CurvatureTask:
             self.curvature:  ResidualTerm(getattr(res_lib, "_" + self.curvature), 1.0, self.pts_boundary, ),
         }
 
-    def update(self, res_terms, model, it):
+    def update(self, res_terms, model, it, resample=True):
         """Called before every optimizer step: loss weight schedule and surface resampling."""
         if it == 500:
             res_terms["eikonal"].weight = 0.0
+        if not resample:
+            return
         pts_surface = sample_model_surface_binsearch(model, self.pts_boundary, self.sample_bounds)
         if self.refine_surface:
             pts_surface = sample_model_surface_newton(model, self.res_lib, pts_surface)

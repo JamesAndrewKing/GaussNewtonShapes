@@ -47,10 +47,17 @@ def parse_kv(pairs):
 
 
 def pretrain(task, seed, path, n_samples=10_000, n_iters=1000):
-    """Fit the model to the task's initial shape with Adam (as in the notebooks). Cached per seed."""
+    """
+    Fit the model to the task's initial shape with Adam (as in the notebooks), or use the task's own pretraining.
+    Cached per seed.
+    """
     model = task.model()
     if os.path.exists(path):
         model.load_state_dict(torch.load(path))
+        return model
+    if hasattr(task, "pretrain"):
+        task.pretrain(model)
+        torch.save(model.state_dict(), path)
         return model
     b = task.pretrain_bounds
     pts = torch.rand(n_samples, 3, dtype=torch.float64) * (b[:, 1] - b[:, 0]) + b[:, 0]
@@ -151,8 +158,10 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
             unweighted_losses = train_step(optim, params, res_terms, None)
         clock.stop()
 
-        ## A term without points (e.g. the surface vanished) makes the reported loss nan
-        loss = sum(unweighted_losses[k].item() if k in unweighted_losses else float('nan') for k in task.loss_keys)
+        if hasattr(task, "reported_loss"):
+            loss = task.reported_loss(unweighted_losses, res_terms)
+        else:  ## a term without points (e.g. the surface vanished) makes the reported loss nan
+            loss = sum(unweighted_losses[k].item() if k in unweighted_losses else float('nan') for k in task.loss_keys)
         log["time"].append(clock.elapsed)
         log["loss"].append(loss)
         for k in res_terms:
@@ -160,7 +169,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
         if loss < best_loss:
             best_loss = loss
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
-        pbar.set_description(f"t: {clock.elapsed:.0f}s loss: {loss:.2e} cd: {evals[-1]['cd']:.2e}")
+        pbar.set_description(f"t: {clock.elapsed:.0f}s loss: {loss:.2e}")
 
     torch.save(model.state_dict(), os.path.join(out_dir, "final.pt"))
     torch.save(best_state, os.path.join(out_dir, "best.pt"))

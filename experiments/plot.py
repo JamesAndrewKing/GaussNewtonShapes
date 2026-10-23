@@ -86,7 +86,8 @@ if __name__ == "__main__":
     paper = lambda metric: TASKS[args.task].paper_data.format(metric, "{}") if args.paper else None
 
     plot_over_time(runs, "loss", "Loss", [os.path.join(out_dir, "loss_over_time.png")], paper("loss"))
-    plot_over_time(runs, "cd", "Two-sided Chamfer", [os.path.join(out_dir, "cd_over_time.png")])
+    if all("cd" in evals["best"] for _, evals in runs.values()):
+        plot_over_time(runs, "cd", "Two-sided Chamfer", [os.path.join(out_dir, "cd_over_time.png")])
     if all("cd1_paper" in evals["best"] for _, evals in runs.values()):
         plot_over_time(runs, "cd1_paper", "$CD_1$", [os.path.join(out_dir, "cd1_paper_over_time.png")], paper("chamf"))
 

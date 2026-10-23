@@ -3,9 +3,9 @@ Paper figures from finished runs (no training), e.g.
 
     python -m experiments.figures --task catenoid
 
-Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for exp != main):
-    <prefix>_loss.{png,pdf}, <prefix>_chamfer.{png,pdf}   training curves
-    <prefix>_heatmap.{png,pdf}                            curvature of the best surfaces side by side, with colorbar
+Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for exp != main, plus --suffix):
+    <prefix>_loss.png, <prefix>_chamfer.png               training curves
+    <prefix>_heatmap.png                                  curvature of the best surfaces side by side, with colorbar
                                                           (<prefix>_surfaces: plain surfaces, for tasks without a curvature)
 and the interactive scenes to experiments/results/<task>/<exp>/k3d/:
     heatmap.html / surfaces.html                          the scene of the figure above
@@ -53,7 +53,7 @@ def display_orientation(task, x):
 
 
 def surface_mesh(task, run_dir, N=256):
-    """Marching-cubes mesh of the best model, with |curvature| as vertex attribute if the task has a curvature."""
+    """Marching-cubes mesh of the best model, with the task's surface attribute (|curvature|, log strain) if it has one."""
     model = task.model()
     model.load_state_dict(torch.load(os.path.join(run_dir, "best.pt")))
     bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in task.mesh_bbox)
@@ -62,7 +62,9 @@ def surface_mesh(task, run_dir, N=256):
         component = largest_component(verts, faces)[0]
         verts, faces = np.asarray(component.vertices), np.asarray(component.faces)
     k = None
-    if hasattr(task, "curvature"):
+    if hasattr(task, "surface_attribute"):
+        k = task.surface_attribute(model, verts)
+    elif hasattr(task, "curvature"):
         residual = getattr(ResidualLibrary(model), "_" + task.curvature)
         k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
         k = k.abs().detach().cpu().numpy().astype(np.float32)
@@ -124,7 +126,7 @@ def k3d_screenshot(html_path, width, height, scale=2):
     return img.crop(ImageOps.invert(img).getbbox())
 
 
-def heatmap_figure(img, color_range, paths, width=7.0):
+def heatmap_figure(img, color_range, paths, width=7.0, ticks=None):
     """The rendered scene, with a colorbar on the left if color_range is given (Figure 1a)."""
     with plt.rc_context({"font.family": "serif", "font.serif": ["cmr10"], "axes.formatter.use_mathtext": True}):
         if color_range is None:
@@ -135,7 +137,7 @@ def heatmap_figure(img, color_range, paths, width=7.0):
             ax_img = fig.add_axes([0.13, 0.0, 0.87, 1.0])
             ax_cbar = fig.add_axes([0.02, 0.12, 0.015, 0.76])
             fig.colorbar(plt.cm.ScalarMappable(norm=Normalize(*color_range), cmap="jet"), cax=ax_cbar,
-                         ticks=np.linspace(*color_range, 6))
+                         ticks=np.linspace(*color_range, 6) if ticks is None else ticks)
         ax_img.imshow(img)
         ax_img.axis("off")
         for path in paths:
@@ -148,30 +150,34 @@ if __name__ == "__main__":
     parser.add_argument("--task", required=True, choices=TASKS)
     parser.add_argument("--exp", default="main")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--suffix", default="", help="run name suffix after the optimizer, e.g. _strain_clip1000")
     args = parser.parse_args()
 
     torch.set_default_device('cuda')
     task = TASKS[args.task]()
     exp_dir = os.path.join(RESULTS_DIR, args.task, args.exp)
-    k3d_dir = os.path.join(exp_dir, "k3d")
+    k3d_dir = os.path.join(exp_dir, "k3d" + args.suffix)
     os.makedirs(k3d_dir, exist_ok=True)
     os.makedirs(PAPER_FIGURES_DIR, exist_ok=True)
-    runs = load_runs(exp_dir, task.figure_opts, args.seed)
-    prefix = args.task if args.exp == "main" else f"{args.task}_{args.exp.replace('/', '_')}"
-    out = lambda name: [os.path.join(PAPER_FIGURES_DIR, f"{prefix}_{name}.{ext}") for ext in ["png", "pdf"]]
+    runs = load_runs(exp_dir, [opt + args.suffix for opt in task.figure_opts], args.seed)
+    runs = {name.removesuffix(args.suffix): run for name, run in runs.items()}
+    prefix = (args.task if args.exp == "main" else f"{args.task}_{args.exp.replace('/', '_')}") + args.suffix
+    out = lambda name: [os.path.join(PAPER_FIGURES_DIR, f"{prefix}_{name}.png")]
 
     ## Training curves
     plot_over_time(runs, "loss", "Loss", out("loss"))
-    plot_over_time(runs, "cd", "Chamfer distance", out("chamfer"))
+    if all("cd" in evals["best"] for _, evals in runs.values()):
+        plot_over_time(runs, "cd", "Chamfer distance", out("chamfer"))
 
     ## Best surfaces side by side: curvature heatmaps, or plain surfaces
-    name = "heatmap" if hasattr(task, "curvature") else "surfaces"
-    meshes = {opt: surface_mesh(task, os.path.join(exp_dir, f"{opt}_seed{args.seed}")) for opt in runs}
+    name = "heatmap" if "color_range" in task.heatmap else "surfaces"
+    meshes = {opt: surface_mesh(task, os.path.join(exp_dir, f"{opt}{args.suffix}_seed{args.seed}")) for opt in runs}
     for opt, mesh in meshes.items():
         with open(os.path.join(k3d_dir, f"{name}_{opt}.html"), "w") as f:
             f.write(k3d_scene(task, [mesh]).get_snapshot())
     html_path = os.path.join(k3d_dir, f"{name}.html")
     with open(html_path, "w") as f:
         f.write(k3d_scene(task, list(meshes.values())).get_snapshot())
-    heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap.get("color_range"), out(name))
+    heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap.get("color_range"), out(name),
+                   ticks=task.heatmap.get("ticks"))
     print(f"{name} order (left to right):", ", ".join(LABELS[opt] for opt in meshes))

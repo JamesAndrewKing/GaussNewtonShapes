@@ -16,11 +16,10 @@ def enneper(u, v):
 
 
 class Enneper(CurvatureTask):
-    eikonal_weights = {"gn": 1e-3, "adam": 1e-1, "lbfgs": 1e-3}
+    eikonal_weights = {"gn": 1e-3, "adam": 1e-1, "lbfgs": 1e-1}
     paper_data = "notebooks/Data Enneper/{}_over_time_enneper_{}.pth"
     mesh_bbox = ((-0.85, -0.85, -0.85), (0.85, 0.85, 0.85))  ## for the heatmap
     heatmap = dict(color_range=(0, 0.002), elevation=15, azimuth=35, gap=0.1)  ## Figure 2a
-    figure_opts = ["adam", "gn"]  ## LBFGS diverges
 
     def __init__(self, r_max=0.9):
         self.r_max = r_max

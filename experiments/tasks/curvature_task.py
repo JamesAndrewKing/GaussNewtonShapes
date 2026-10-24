@@ -14,13 +14,14 @@ from experiments.metrics import project_to_model, chamfer, curvature_stats, clip
 
 class CurvatureTask:
     curvature = "mean_curvature"  ## residual in training.residuals.ResidualLibrary, without the leading "_"
-    eikonal_weights = {"gn": 1e-3, "adam": 1e-3, "lbfgs": 1e-3}  ## per optimizer, as for the paper figures
+    ## Per optimizer: GN and Adam as for the paper figures; LBFGS chosen by an eikonal sweep (lower weights let it collapse f -> 0)
+    eikonal_weights = {"gn": 1e-3, "adam": 1e-3, "lbfgs": 1e-3}
     eikonal_with_boundary = True  ## also enforce the eikonal equation on the boundary points
     refine_surface = False        ## Newton-refine the binary-search surface samples during training
     opt_defaults = {
         "gn":    dict(lr=1e-1, regularization=1e-6, do_line_search=False),
         "adam":  dict(lr=1e-3),
-        "lbfgs": dict(),  ## torch defaults (lr=1, max_iter=20, history_size=100)
+        "lbfgs": dict(line_search_fn="strong_wolfe"),  ## otherwise torch defaults (lr=1, max_iter=20, history_size=100)
     }
     figure_opts = ["adam", "lbfgs", "gn"]  ## optimizers shown in the paper figures, left to right
     table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "hausdorff", "interface_rms", "curv_rms", "curv_max", "area_err_discrete"]

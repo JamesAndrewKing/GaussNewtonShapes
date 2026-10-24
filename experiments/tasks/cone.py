@@ -12,14 +12,13 @@ from experiments.tasks.curvature_task import CurvatureTask
 
 class Cone(CurvatureTask):
     curvature = "gauss_curvature"
-    eikonal_weights = {"gn": 1e-3, "adam": 1e-1, "lbfgs": 1e-3}
+    eikonal_weights = {"gn": 1e-3, "adam": 1e-1, "lbfgs": 1e-2}
     eikonal_with_boundary = False
     refine_surface = True
     opt_defaults = {**CurvatureTask.opt_defaults, "adam": dict(lr=1e-4)}
     paper_data = "notebooks/Data Cone/{}_over_time_cone_{}.pth"
     mesh_bbox = ((-2, -2, -0.05), (2, 2, 1.05))
     heatmap = dict(color_range=(0, 0.005), elevation=25, azimuth=0, gap=0.08)  ## Figure 3a
-    figure_opts = ["adam", "gn"]  ## LBFGS diverges
 
     def __init__(self, r_bottom=1.0, r_top=0.4, height=1.0):
         self.r_bottom, self.r_top, self.height = r_bottom, r_top, height

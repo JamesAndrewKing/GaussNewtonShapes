@@ -150,7 +150,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
             break
 
         clock.start()
-        update = lambda: task.update(res_terms, model, i, resample=not freeze_samples or i == 0)
+        update = lambda: task.update(res_terms, model, clock.elapsed, resample=not freeze_samples or i == 0)
         if resample_in_closure:
             unweighted_losses = train_step(optim, params, res_terms, update)
         else:

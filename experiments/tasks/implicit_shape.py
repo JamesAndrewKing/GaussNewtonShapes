@@ -83,7 +83,7 @@ class ImplicitShapeTask:
             "normal":  ResidualTerm(res_lib._normal,  1.0,                       self.pts, self.normals),
         }
 
-    def update(self, res_terms, model, it, resample=True):
+    def update(self, res_terms, model, t, resample=True):
         pass  ## no moving points
 
     @torch.no_grad()

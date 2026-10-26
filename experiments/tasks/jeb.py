@@ -145,7 +145,7 @@ class JEB:
         return distance_filter(pts, subsample(self.pts_interface_all, 8192), 0.04)
 
     @torch.no_grad()
-    def update(self, res_terms, model, it, resample=True):
+    def update(self, res_terms, model, t, resample=True):
         """Called before every optimizer step: new samples for all terms, as in the notebook."""
         if not resample:
             return

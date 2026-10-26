@@ -1,6 +1,6 @@
 """
 Shared setup of the minimal and developable surface problems (Sections 4.1 and 4.2): an interface loss on a
-prescribed boundary curve plus a curvature loss on the moving surface, with an eikonal term for the first 500 iterations.
+prescribed boundary curve plus a curvature loss on the moving surface, with an eikonal term for the first eikonal_off_time (50 s) of training time.
 Subclasses define the boundary, the true surface (exact distance, region of interest, area) and the figure settings.
 """
 
@@ -16,6 +16,7 @@ class CurvatureTask:
     curvature = "mean_curvature"  ## residual in training.residuals.ResidualLibrary, without the leading "_"
     ## Per optimizer: GN and Adam as for the paper figures; LBFGS chosen by an eikonal sweep (lower weights let it collapse f -> 0)
     eikonal_weights = {"gn": 1e-3, "adam": 1e-3, "lbfgs": 1e-3}
+    eikonal_off_time = 50.0       ## seconds of training time after which the eikonal weight is 0, the same for all optimizers
     eikonal_with_boundary = True  ## also enforce the eikonal equation on the boundary points
     refine_surface = False        ## Newton-refine the binary-search surface samples during training
     opt_defaults = {
@@ -58,9 +59,9 @@ class CurvatureTask:
             self.curvature:  ResidualTerm(getattr(res_lib, "_" + self.curvature), 1.0, self.pts_boundary, ),
         }
 
-    def update(self, res_terms, model, it, resample=True):
-        """Called before every optimizer step: loss weight schedule and surface resampling."""
-        if it == 500:
+    def update(self, res_terms, model, t, resample=True):
+        """Called before every optimizer step (t: training time in s): loss weight schedule and surface resampling."""
+        if t >= self.eikonal_off_time:
             res_terms["eikonal"].weight = 0.0
         if not resample:
             return

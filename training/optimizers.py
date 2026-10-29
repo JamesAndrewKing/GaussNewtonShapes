@@ -184,3 +184,46 @@ class GaussNewtonNew:
         else:
             theta_new = theta_orig - self.lr * update
             self._assign_flat_params_inplace(theta_new)
+
+
+class LevenbergMarquardt(GaussNewtonNew):
+    """
+    Gauss-Newton with adaptive damping (Levenberg-Marquardt, a trust-region method): the full step
+    delta = (J^T J + lambda I)^{-1} J^T r is accepted if it decreases the loss 0.5 ||r||^2, and lambda is adapted
+    from the gain ratio rho = actual / predicted decrease (Nielsen's rule). A rejected step is retried with a larger
+    lambda on the same Jacobian.
+    """
+    def __init__(self, model, res_terms, tau=1e-3, max_tries=10):
+        super().__init__(model, res_terms, do_line_search=False)
+        self.tau = tau
+        self.max_tries = max_tries
+        self.damping = None  ## lambda, initialized from the diagonal of J^T J in the first step
+        self.nu = 2.0
+
+    @torch.no_grad()
+    def step(self):
+        self.t += 1
+        r = compute_residual(self.params_dict, self.res_terms)
+        grad = compute_JTv(self.params_dict, self.res_terms, r)
+        JTJ = compute_JTJ(self.params_dict, self.res_terms)
+        if self.damping is None:
+            self.damping = self.tau * JTJ.diagonal().max().item()
+        loss = 0.5 * r.square().sum()
+        theta_orig = parameters_to_vector(self.params_list)
+        eye = torch.eye(grad.shape[0], dtype=grad.dtype, device=grad.device)
+
+        for _ in range(self.max_tries):
+            delta, _, _, _ = torch.linalg.lstsq((JTJ + self.damping * eye).double(), grad.double(), driver="gels")
+            delta = delta.to(dtype=theta_orig.dtype)
+            predicted = 0.5 * delta @ (self.damping * delta + grad)
+            self._assign_flat_params_inplace(theta_orig - delta)
+            actual = loss - 0.5 * compute_residual(self.params_dict, self.res_terms).square().sum()
+            rho = (actual / predicted).item() if predicted > 0 else -1.0
+            if rho > 0:
+                self.damping *= max(1 / 3, 1 - (2 * rho - 1) ** 3)
+                self.nu = 2.0
+                self.loss = (loss - actual).item()
+                return
+            self._assign_flat_params_inplace(theta_orig)
+            self.damping *= self.nu
+            self.nu *= 2

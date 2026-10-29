@@ -2,6 +2,7 @@
 Paper figures from finished runs (no training), e.g.
 
     python -m experiments.figures --task catenoid
+    python -m experiments.figures --task catenoid --runs gn_seed0 gn_seed4 --name nonunique --paper
 
 Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for exp != main, plus --suffix):
     <prefix>_loss.png, <prefix>_chamfer.png               training curves
@@ -10,6 +11,8 @@ Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for e
 and the interactive scenes to experiments/results/<task>/<exp>/k3d/:
     heatmap.html / surfaces.html                          the scene of the figure above
     heatmap_<opt>.html / surfaces_<opt>.html              one optimizer per file (e.g. for the README)
+With --runs, only the given runs are rendered side by side in the same style, to k3d/<name>.html and k3d/<name>.png
+(e.g. to compare seeds or inspect failures); --paper writes the PNG to paper_figures/<task>_<name>.png instead.
 The PNG of the k3d scene is rendered with headless Chrome via selenium.
 """
 
@@ -31,7 +34,7 @@ from util.visualization.utils_mesh import get_mesh
 from experiments.run import RESULTS_DIR
 from experiments.tasks import TASKS
 from experiments.plot import LABELS, load_runs, plot_over_time
-from experiments.metrics import largest_component
+from experiments.metrics import largest_component, project_to_model
 
 PAPER_FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "paper_figures")
 
@@ -65,8 +68,14 @@ def surface_mesh(task, run_dir, N=256):
     if hasattr(task, "surface_attribute"):
         k = task.surface_attribute(model, verts)
     elif hasattr(task, "curvature"):
-        residual = getattr(ResidualLibrary(model), "_" + task.curvature)
-        k = vmap(residual, in_dims=(None, 0))(model.params, torch.tensor(verts, dtype=torch.float64)).squeeze()
+        ## Curvature of the zero set at the vertices projected onto it: the marching-cubes vertices lie up to a cell off
+        ## the surface, where the level sets of f can be curved differently if f is far from a distance function
+        res_lib = ResidualLibrary(model)
+        x = torch.tensor(verts, dtype=torch.float64)
+        p, converged = project_to_model(model, res_lib, x)
+        cell = (bbox_max - bbox_min).max().item() / N
+        p = torch.where((converged & ((p - x).norm(dim=1) < cell))[:, None], p, x)
+        k = vmap(getattr(res_lib, "_" + task.curvature), in_dims=(None, 0))(model.params, p).squeeze()
         k = k.abs().detach().cpu().numpy().astype(np.float32)
     return display_orientation(task, verts.astype(np.float32)), faces.astype(np.uint32), k
 
@@ -151,6 +160,9 @@ if __name__ == "__main__":
     parser.add_argument("--exp", default="main")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--suffix", default="", help="run name suffix after the optimizer, e.g. _strain_clip1000")
+    parser.add_argument("--runs", nargs="*", help="only render these runs side by side, e.g. gn_seed0 gn_seed4")
+    parser.add_argument("--name", default="runs", help="figure name for --runs")
+    parser.add_argument("--paper", action="store_true", help="--runs: write the PNG to paper_figures/")
     args = parser.parse_args()
 
     torch.set_default_device('cuda')
@@ -159,6 +171,17 @@ if __name__ == "__main__":
     k3d_dir = os.path.join(exp_dir, "k3d" + args.suffix)
     os.makedirs(k3d_dir, exist_ok=True)
     os.makedirs(PAPER_FIGURES_DIR, exist_ok=True)
+    if args.runs:
+        ## Chosen runs side by side (e.g. different solutions or failure modes), in the style of the heatmap figure
+        meshes = [surface_mesh(task, os.path.join(exp_dir, run)) for run in args.runs]
+        html_path = os.path.join(k3d_dir, f"{args.name}.html")
+        with open(html_path, "w") as f:
+            f.write(k3d_scene(task, meshes).get_snapshot())
+        png_path = os.path.join(PAPER_FIGURES_DIR, f"{args.task}_{args.name}.png") if args.paper else html_path[:-5] + ".png"
+        heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap.get("color_range"), [png_path],
+                       ticks=task.heatmap.get("ticks"))
+        print(f"{args.name} order (left to right):", ", ".join(args.runs))
+        raise SystemExit
     runs = load_runs(exp_dir, [opt + args.suffix for opt in task.figure_opts], args.seed)
     runs = {name.removesuffix(args.suffix): run for name, run in runs.items()}
     prefix = (args.task if args.exp == "main" else f"{args.task}_{args.exp.replace('/', '_')}") + args.suffix

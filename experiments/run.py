@@ -9,6 +9,9 @@ Writes to experiments/results/<task>/<exp>/<opt><tag><task args>_seed<seed>/:
     evals.json   error metrics every --eval-every seconds of training time, and at the end
     best.pt, final.pt  model state dicts
 
+Optimizers: gn, adam, lbfgs, lm (Levenberg-Marquardt), and the hybrids adam_lbfgs and adam_gn, which switch from Adam
+to the second optimizer after SWITCH_FRACTION of the budget (the usual Adam -> LBFGS recipe of PINNs).
+
 The clock only runs during the optimizer steps (incl. surface resampling).
 Evaluation, logging and best-model tracking happen with the clock paused.
 """
@@ -21,10 +24,12 @@ import time
 import torch
 from tqdm import trange
 from training.residuals import ResidualLibrary, compute_loss
-from training.optimizers import GaussNewton
+from training.optimizers import GaussNewton, LevenbergMarquardt
 from experiments.tasks import TASKS
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
+BASE_OPT = {"lm": "gn", "adam_lbfgs": "adam", "adam_gn": "adam"}  ## whose task settings (eikonal weight) these use
+SWITCH_FRACTION = 0.25  ## hybrids: fraction of the budget spent with Adam
 
 
 class Clock:
@@ -80,6 +85,8 @@ def make_optimizer(name, model, res_terms, gn_class=GaussNewton, **kwargs):
         return torch.optim.Adam(model.parameters(), **kwargs)
     if name == "lbfgs":
         return torch.optim.LBFGS(model.parameters(), **kwargs)
+    if name == "lm":
+        return LevenbergMarquardt(model, res_terms, **kwargs)
     raise ValueError(f"Unknown optimizer {name}")
 
 
@@ -123,9 +130,11 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     model = pretrain(task, seed, os.path.join(pretrained_dir, f"seed{seed}{args_str}.pt"))
     params = model.params
     res_lib = ResidualLibrary(model)
-    res_terms = task.res_terms(res_lib, opt_name)
-    opt_kwargs = {**task.opt_defaults[opt_name], **opt_args}
-    optim = make_optimizer(opt_name, model, res_terms, getattr(task, "gn_class", GaussNewton), **opt_kwargs)
+    res_terms = task.res_terms(res_lib, BASE_OPT.get(opt_name, opt_name))
+    first, _, second = opt_name.partition("_")  ## hybrids: first, then second
+    opt_kwargs = {**task.opt_defaults.get(first, {}), **opt_args}
+    gn_class = getattr(task, "gn_class", GaussNewton)
+    optim = make_optimizer(first, model, res_terms, gn_class, **opt_kwargs)
 
     config = dict(
         task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget,
@@ -137,7 +146,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     with open(os.path.join(out_dir, "config.json"), "w") as f:
         json.dump(config, f, indent=2)
 
-    log = {"time": [], "loss": [], **{k: [] for k in res_terms}}
+    log = {"time": [], "loss": [], **{k: [] for k in res_terms}, "switch_time": None}
     evals = []
     best_loss = float('inf')
     best_state = {k: v.clone() for k, v in model.state_dict().items()}
@@ -169,6 +178,9 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
         if loss < best_loss:
             best_loss = loss
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
+        if second and log["switch_time"] is None and clock.elapsed >= SWITCH_FRACTION * budget:
+            optim = make_optimizer(second, model, res_terms, gn_class, **task.opt_defaults[second])
+            log["switch_time"] = clock.elapsed
         pbar.set_description(f"t: {clock.elapsed:.0f}s loss: {loss:.2e}")
 
     torch.save(model.state_dict(), os.path.join(out_dir, "final.pt"))
@@ -186,7 +198,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", required=True, choices=TASKS)
-    parser.add_argument("--opt", required=True, choices=["gn", "adam", "lbfgs"])
+    parser.add_argument("--opt", required=True, choices=["gn", "adam", "lbfgs", "lm", "adam_lbfgs", "adam_gn"])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--budget", type=float, default=600, help="training time in seconds")
     parser.add_argument("--eval-every", type=float, default=5, help="seconds of training time between evaluations")

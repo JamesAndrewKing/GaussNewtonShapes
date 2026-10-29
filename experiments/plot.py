@@ -18,13 +18,15 @@ import matplotlib.pyplot as plt
 from experiments.run import RESULTS_DIR
 from experiments.tasks import TASKS
 
-LABELS = {"adam": "Adam", "lbfgs": "LBFGS", "gn": "GN"}
+LABELS = {"adam": "Adam", "lbfgs": "LBFGS", "gn": "GN",
+          "lm": "LM", "adam_lbfgs": r"Adam $\to$ LBFGS", "adam_gn": r"Adam $\to$ GN"}
 COLORS = {opt: plt.get_cmap('tab10')(i) for i, opt in enumerate(LABELS)}
 
 
 def split_name(name):
-    """'lbfgs_notebook' -> ('lbfgs', 'LBFGS (notebook)')"""
-    opt, _, tag = name.partition("_")
+    """'lbfgs_notebook' -> ('lbfgs', 'LBFGS (notebook)'); the longest optimizer name wins ('adam_lbfgs' is a hybrid)"""
+    opt = max((o for o in LABELS if name == o or name.startswith(o + "_")), key=len)
+    tag = name[len(opt) + 1:]
     return opt, LABELS[opt] + (f" ({tag})" if tag else "")
 
 

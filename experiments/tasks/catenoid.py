@@ -6,6 +6,9 @@ Goldschmidt sweep (h_over_R given): rings of radius R = cosh(1) at z = ±h with 
 cylinder of radius R or from the planes z = ±h (init). A catenoid through the rings exists only for
 h/R < H_OVER_R_MAX; the true surface is its stable branch, and otherwise the Goldschmidt solution (the two discs).
 The Chamfer distance to the discs is always reported as cd_planes, so each result can be classified.
+
+Initialization sweep: init="cylinder" or "sphere" of radius init_radius, pretrained on [-pretrain_extent, pretrain_extent]^3
+(2.0, the sampling box, for shapes that do not fit into the default [-1, 1]^3).
 """
 
 import math
@@ -44,8 +47,9 @@ class Catenoid(CurvatureTask):
     mesh_bbox = ((-2, -2, -1.25), (2, 2, 1.25))  ## for the area and the heatmap
     heatmap = dict(color_range=(0, 0.002), elevation=20, azimuth=0, gap=0.05)  ## Figure 1a
 
-    def __init__(self, c=1.0, h=1.0, init_radius=1.0, h_over_R=None, init="cylinder"):
+    def __init__(self, c=1.0, h=1.0, init_radius=1.0, h_over_R=None, init="cylinder", pretrain_extent=1.0):
         self.init = init
+        self.pretrain_extent = pretrain_extent
         if h_over_R is None:
             self.R = c * math.cosh(h / c)
         else:
@@ -91,6 +95,8 @@ class Catenoid(CurvatureTask):
     def pretrain_target(self, x):
         if self.init == "planes":
             return x[:, 2]**2 - self.h**2  ## planes z = ±h
+        if self.init == "sphere":
+            return x.square().sum(dim=1) - self.init_radius**2
         ## Cylinder of radius init_radius
         return x[:, 0]**2 + x[:, 1]**2 - self.init_radius**2
 

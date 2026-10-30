@@ -44,7 +44,7 @@ class JEB:
         "lbfgs": dict(line_search_fn="strong_wolfe"),
     }
     gn_class = GaussNewton
-    figure_opts = ["gn", "adam"]  ## as in Figures 6 and 7
+    figure_opts = ["adam", "lbfgs", "gn"]  ## left to right, as in the other figures
     table_keys = ["loss", "interface_rms", "normal_consistency", "design_region_violation", "design_region_max_depth",
                   "n_components", "strain_mean", "strain_median", "strain_p95", "eikonal_rms"]
     z = 0.05  ## latent code of the conditional WIRE

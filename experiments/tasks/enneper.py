@@ -4,6 +4,7 @@ The boundary is the image of the circle r = r_max under the parametrization
     X(u, v) = (u - u^3/3 + u v^2,  v - v^3/3 + v u^2,  u^2 - v^2).
 For r < 1 the patch is a graph over the xy-plane (the Jacobian of (u, v) -> (x, y) has determinant 1 - r^4),
 which gives the region of interest and an exact area element.
+Initialization: the xy-plane, shifted to z = offset and tilted by tilt degrees about the x-axis (initialization sweep).
 """
 
 import math
@@ -21,8 +22,8 @@ class Enneper(CurvatureTask):
     mesh_bbox = ((-0.85, -0.85, -0.85), (0.85, 0.85, 0.85))  ## for the heatmap
     heatmap = dict(color_range=(0, 0.002), elevation=15, azimuth=35, gap=0.1)  ## Figure 2a
 
-    def __init__(self, r_max=0.9):
-        self.r_max = r_max
+    def __init__(self, r_max=0.9, offset=0.0, tilt=0.0):
+        self.r_max, self.offset, self.tilt = r_max, offset, tilt
         phi = torch.linspace(-torch.pi, torch.pi, 1000, dtype=torch.float64)
         self.pts_boundary = enneper(r_max * torch.cos(phi), r_max * torch.sin(phi))
         ## True surface (64 x 128 grid in r and phi)
@@ -35,8 +36,9 @@ class Enneper(CurvatureTask):
         self.area_true = 2 * math.pi * (r_max**2/2 + r_max**4/2 + r_max**6/6)  ## int (1+r^2)^2 r dr dphi
 
     def pretrain_target(self, x):
-        ## The xy-plane
-        return x[:, 2]
+        ## The xy-plane, shifted and tilted
+        t = math.radians(self.tilt)
+        return math.cos(t) * x[:, 2] - math.sin(t) * x[:, 1] - self.offset
 
     @staticmethod
     def uv_from_xy(x, y, n_steps=20, n_iter=5):

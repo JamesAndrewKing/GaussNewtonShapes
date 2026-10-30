@@ -19,7 +19,7 @@ from experiments.run import RESULTS_DIR
 from experiments.tasks import TASKS
 
 LABELS = {"adam": "Adam", "lbfgs": "LBFGS", "gn": "GN",
-          "lm": "LM", "adam_lbfgs": r"Adam $\to$ LBFGS", "adam_gn": r"Adam $\to$ GN"}
+          "lm": "GN (adaptive damping)", "adam_lbfgs": r"Adam $\to$ LBFGS", "adam_gn": r"Adam $\to$ GN"}
 COLORS = {opt: plt.get_cmap('tab10')(i) for i, opt in enumerate(LABELS)}
 
 

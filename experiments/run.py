@@ -11,6 +11,7 @@ Writes to experiments/results/<task>/<exp>/<opt><tag><task args>_seed<seed>/:
 
 Optimizers: gn, adam, lbfgs, lm (Levenberg-Marquardt), and the hybrids adam_lbfgs and adam_gn, which switch from Adam
 to the second optimizer after SWITCH_FRACTION of the budget (the usual Adam -> LBFGS recipe of PINNs).
+With --restart-period, Adam uses cosine annealing with warm restarts (first period in steps, then twice as long).
 
 The clock only runs during the optimizer steps (incl. surface resampling).
 Evaluation, logging and best-model tracking happen with the clock paused.
@@ -115,7 +116,7 @@ def train_step(optim, params, res_terms, update):
 
 
 def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt_args={}, device="cuda", tag="",
-        resample_in_closure=False, exp="main", freeze_samples=False, task_attrs={}):
+        resample_in_closure=False, exp="main", freeze_samples=False, task_attrs={}, restart_period=None):
     torch.set_default_device(device)
     task = TASKS[task_name](**task_args)
     for k, v in task_attrs.items():  ## e.g. eikonal_weights={"lbfgs": 0.1}; dicts are merged into the task's
@@ -135,10 +136,13 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     opt_kwargs = {**task.opt_defaults.get(first, {}), **opt_args}
     gn_class = getattr(task, "gn_class", GaussNewton)
     optim = make_optimizer(first, model, res_terms, gn_class, **opt_kwargs)
+    ## Adam with warm restarts: cosine annealing restarted after restart_period steps, then 2x, 4x, ... as long
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, restart_period, T_mult=2) if restart_period else None
 
     config = dict(
         task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget,
         resample_in_closure=resample_in_closure, freeze_samples=freeze_samples, task_attrs=task_attrs,
+        restart_period=restart_period,
         n_params=sum(p.numel() for p in model.parameters()),
         device=torch.cuda.get_device_name(0), torch=torch.__version__,
         commit=subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip(),
@@ -165,6 +169,8 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
         else:
             update()
             unweighted_losses = train_step(optim, params, res_terms, None)
+        if scheduler:
+            scheduler.step()
         clock.stop()
 
         if hasattr(task, "reported_loss"):
@@ -209,8 +215,9 @@ if __name__ == "__main__":
     parser.add_argument("--resample-in-closure", action="store_true", help="LBFGS: resample in every closure evaluation")
     parser.add_argument("--freeze-samples", action="store_true", help="sample the moving points once and keep them fixed")
     parser.add_argument("--task-attrs", nargs="*", default=[], help='override task attributes, e.g. eikonal_weights={"lbfgs":0.1}')
+    parser.add_argument("--restart-period", type=int, help="Adam: cosine annealing with warm restarts, first period in steps")
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
     run(args.task, args.opt, args.seed, args.budget, args.eval_every,
         parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag, args.resample_in_closure, args.exp,
-        args.freeze_samples, parse_kv(args.task_attrs))
+        args.freeze_samples, parse_kv(args.task_attrs), args.restart_period)

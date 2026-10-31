@@ -1,6 +1,9 @@
 """
 Implicit neural shapes (notebooks/rockerarm.ipynb, notebooks/bunny.ipynb, Section 4.3): fit f = 0 to the vertices
 of a mesh with their normals, regularized by an eikonal term. Settings as for the paper figures (commits cb574c0/5ee82bc).
+Variants: a fraction of the vertices (the rest held out), Gaussian noise on the points (noise: standard deviation relative
+to the bounding-box diagonal) with the normals tilted by a random angle of standard deviation 10 * noise radians
+(1% noise: 5.7 degrees), and other network sizes (width, depth: hidden layers).
 """
 
 import numpy as np
@@ -33,7 +36,8 @@ class ImplicitShapeTask:
                   "cd_all", "hausdorff_all", "removed_area_fraction", "over_hole_fraction"]
     pretrain_extent = 1.5
 
-    def __init__(self, subsample_fraction=1.0):
+    def __init__(self, subsample_fraction=1.0, noise=0.0, width=32, depth=3):
+        self.width, self.depth = width, depth
         mesh = trimesh.load(NOTEBOOKS_DIR + self.mesh_file)
         ## Normalize as in the notebooks: centered, max vertex norm 1
         center = mesh.vertices.mean(axis=0)
@@ -51,6 +55,14 @@ class ImplicitShapeTask:
         n_sub = int(subsample_fraction * len(pts))
         self.pts, self.normals = pts[perm[:n_sub]], normals[perm[:n_sub]]
         self.pts_held_out = pts[perm[n_sub:]]
+        if noise > 0:  ## the evaluation uses the clean mesh
+            g = torch.Generator(device="cpu").manual_seed(2)
+            randn = lambda *shape: torch.randn(*shape, dtype=torch.float64, generator=g, device="cpu").to(pts.device)
+            diagonal = (pts.max(0).values - pts.min(0).values).norm()
+            self.pts = self.pts + noise * diagonal * randn(len(self.pts), 3)
+            tangent = torch.nn.functional.normalize(torch.linalg.cross(self.normals, randn(len(self.pts), 3)), dim=1)
+            angle = 10 * noise * randn(len(self.pts), 1)
+            self.normals = torch.cos(angle) * self.normals + torch.sin(angle) * tangent
         self.box_min, self.box_max = pts.min(0).values - 0.2, pts.max(0).values + 0.2
         self.mesh_bbox = (tuple((pts.min(0).values - 0.05).tolist()), tuple((pts.max(0).values + 0.05).tolist()))
         ## Fixed evaluation samples
@@ -70,7 +82,7 @@ class ImplicitShapeTask:
         return torch.stack([self.box_min + 0.1, self.box_max - 0.1], dim=1)  ## the points' bounding box +- 0.1
 
     def model(self):
-        return GeneralNet(ks=[3, 32, 32, 32, 1], act=torch.sin)
+        return GeneralNet(ks=[3] + [self.width] * self.depth + [1], act=torch.sin)
 
     def pretrain_target(self, x):
         ## SDF of the unit ball

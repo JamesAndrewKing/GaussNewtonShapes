@@ -1,3 +1,4 @@
+import time
 import torch
 from training.residuals import compute_loss
 from training.gram_factory import compute_JTJ, compute_JJT, compute_JTv, compute_residual
@@ -146,6 +147,70 @@ class GaussNewtonNew:
         x, _, _, _ = torch.linalg.lstsq(A.double(), r.double(), driver="gels")
         # J^T x (same dtype/device as params)
         return compute_JTv(self.params_dict, self.res_terms, x).to(dtype=r.dtype, device=r.device)
+
+    def calculate_update_cg(self, rank=100, tol=1e-8, max_iter=1000, precondition=True):
+        """
+        Matrix-free GN direction: (J^T J + eps I) x = J^T r by conjugate gradients, with products J v and J^T u
+        (forward and reverse mode) instead of a stored matrix. Memory is O(N + p * rank) instead of O(p^2) or O(N^2).
+        Preconditioner: randomized Nystrom approximation U diag(lam) U^T of J^T J of the given rank
+        (Frangella, Tropp, Udell 2023, Algorithms 2.1 and 5.3), which costs rank products with J^T J.
+        Iteration count, final relative residual and the time of the sketch: self.cg_info.
+        """
+        names = list(self.params_dict)
+        shapes = [self.params_dict[k].shape for k in names]
+        sizes = [self.params_dict[k].numel() for k in names]
+        theta = parameters_to_vector(self.params_list).detach()
+        unflatten = lambda v: {k: t.view(s) for k, t, s in zip(names, torch.split(v, sizes), shapes)}
+        def residual(v):
+            ## compute_residual without its detach, which would cut the forward- and reverse-mode derivatives
+            params = unflatten(v)
+            return torch.cat([(t.weight / len(t.points)) ** 0.5 * t.eval(params).squeeze(1)
+                              for t in self.res_terms.values() if len(t.points)])
+        r, vjp_fn = torch.func.vjp(residual, theta)
+        r = r.detach()
+        JT = lambda u: vjp_fn(u)[0]
+        J = lambda v: torch.func.jvp(residual, (theta,), (v,))[1]
+        eps = self.regularization
+        A = lambda v: JT(J(v)) + eps * v
+        b = JT(r).detach()
+
+        t0 = time.perf_counter()
+        if precondition:
+            ## Nystrom sketch of J^T J: Y = J^T J Omega, with a small shift for numerical stability
+            omega, _ = torch.linalg.qr(torch.randn(len(theta), rank, dtype=theta.dtype, device=theta.device))
+            Y = torch.stack([JT(J(v)) for v in omega.T], dim=1).detach()  ## column by column (the residuals do not vmap)
+            shift = torch.finfo(Y.dtype).eps * torch.linalg.matrix_norm(Y)
+            Y = Y + shift * omega
+            C = torch.linalg.cholesky(omega.T @ Y)
+            B = torch.linalg.solve_triangular(C, Y.T, upper=False).T
+            U, S, _ = torch.linalg.svd(B, full_matrices=False)
+            lam = (S**2 - shift).clamp_min(0)
+            ## P^{-1} = (lam_min + eps) U (diag(lam) + eps)^{-1} U^T + (I - U U^T)
+            precond = lambda v: U @ (((lam[-1] + eps) / (lam + eps) - 1) * (U.T @ v)) + v
+        else:
+            precond = lambda v: v
+
+        if theta.is_cuda:
+            torch.cuda.synchronize()
+        t_sketch = time.perf_counter() - t0
+        x = torch.zeros_like(b)
+        res = b.clone()
+        z = precond(res)
+        d = z.clone()
+        rz = res @ z
+        b_norm = b.norm()
+        for it in range(1, max_iter + 1):
+            Ad = A(d).detach()
+            alpha = rz / (d @ Ad)
+            x += alpha * d
+            res -= alpha * Ad
+            if res.norm() <= tol * b_norm:
+                break
+            z = precond(res)
+            rz, rz_old = res @ z, rz
+            d = z + (rz / rz_old) * d
+        self.cg_info = {"iterations": it, "relative_residual": (res.norm() / b_norm).item(), "sketch_time": t_sketch}
+        return x
 
     @torch.no_grad()
     def step(self):

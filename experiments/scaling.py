@@ -4,8 +4,11 @@ Cost of one optimizer update against the parameter count p and the number of res
     python -m experiments.scaling
     python -m experiments.scaling --widths 32 64 --ns 1000 4000 --kinds ins
 
-Times the update direction of GN with the dense p x p system J^T J (GaussNewtonNew.calculate_update) and with the
-N x N system J J^T (Woodbury, calculate_update_woodbury), and an Adam step (loss, backward, step) for reference.
+Times the update direction of GN with the dense p x p system J^T J (GaussNewtonNew.calculate_update), with the
+N x N system J J^T (Woodbury, calculate_update_woodbury), and matrix-free by conjugate gradients with a randomized Nystrom
+preconditioner of rank 100 (calculate_update_cg, "cg"; "cg_plain" without preconditioner), and an Adam step (loss,
+backward, step) for reference. CG stops at a relative residual of 1e-8 (at most 1000 iterations); the iteration count
+and the time of the Nystrom sketch (included in the total) are stored with the result.
 GN's line search adds up to 15 residual evaluations per step on top of this; they are timed separately ("residual").
 Two residual sets, with N/3 random points in [-1, 1]^3 each:
     ins          data, normal, eikonal (first derivatives in x), sine network with 3 hidden layers as for the INS
@@ -34,10 +37,11 @@ from training.gram_factory import compute_residual
 from experiments.run import RESULTS_DIR
 
 OUT_DIR = os.path.join(RESULTS_DIR, "scaling")
-VARIANTS = ["dense", "woodbury", "adam", "residual"]
-LABELS = {"dense": r"GN, dense $J^TJ$", "woodbury": r"GN, Woodbury $JJ^T$", "adam": "Adam", "residual": "Residual evaluation"}
+VARIANTS = ["dense", "woodbury", "cg", "cg_plain", "adam", "residual"]
+LABELS = {"dense": r"GN, dense $J^TJ$", "woodbury": r"GN, Woodbury $JJ^T$", "cg": "GN, matrix-free",
+          "cg_plain": "GN, matrix-free, no preconditioner", "adam": "Adam", "residual": "Residual evaluation"}
 MAX_GB = 16.0  ## GPU memory (RTX 5080); dense configurations whose p x p matrix alone exceeds a third of it are not tried
-COLORS = {"dense": "tab:green", "woodbury": "tab:pink", "adam": "tab:blue"}  ## GN and Adam as in the paper figures
+COLORS = {"dense": "tab:green", "woodbury": "tab:pink", "cg": "black", "cg_plain": "tab:gray", "adam": "tab:blue"}  ## GN and Adam as in the paper figures
 
 
 def setup(kind, width, n, seed=0):
@@ -95,8 +99,11 @@ def measure(kind, width, n, variant, repeats):
             optim.step()
     else:
         fn = {"dense": gn.calculate_update, "woodbury": gn.calculate_update_woodbury,
+              "cg": gn.calculate_update_cg, "cg_plain": lambda: gn.calculate_update_cg(precondition=False),
               "residual": lambda: compute_residual(gn.params_dict, res_terms)}[variant]
     try:
+        if variant.startswith("cg"):
+            return p, (*timed(fn, repeats), gn.cg_info["iterations"], gn.cg_info["sketch_time"])
         return p, timed(fn, repeats)
     except torch.cuda.OutOfMemoryError:
         return p, "oom"
@@ -116,7 +123,7 @@ def plot(results, kind, x_key, line_key, path):
     lines = sorted({r[line_key] for r in rows})
     styles = ["-", "--", ":", "-.", (0, (5, 1, 1, 1))]
     for j, (ax, ylabel) in enumerate(zip(axs, ["Time per update in [s]", "Peak memory in [GB]"])):
-        for v in ["dense", "woodbury", "adam"]:
+        for v in ["dense", "woodbury", "cg", "adam"]:
             for line, ls in zip(lines, styles):
                 pts = sorted((r[x_key], r["result"][j]) for r in rows if r["variant"] == v and r[line_key] == line)
                 if pts:
@@ -124,7 +131,7 @@ def plot(results, kind, x_key, line_key, path):
         ax.set_xlabel("Number of parameters $p$" if x_key == "p" else "Number of residuals $N$")
         ax.set_ylabel(ylabel)
         ax.loglog()
-    for v in ["dense", "woodbury", "adam"]:
+    for v in ["dense", "woodbury", "cg", "adam"]:
         axs[0].plot([], [], c=COLORS[v], label=LABELS[v])
     for line, ls in zip(lines, styles):
         axs[0].plot([], [], c="gray", ls=ls, label=(f"$N$ = {line:,}" if line_key == "n" else f"width {line}"))
@@ -142,7 +149,7 @@ def summary_plot(results, path, kind="ins", ns=(1000, 16000, 64000)):
     fig, axs = plt.subplots(1, 2, figsize=(10, 3.2))
     styles = dict(zip(ns, ["-", "--", ":"]))
     for j, (ax, ylabel) in enumerate(zip(axs, ["Time per update in [s]", "Peak memory in [GB]"])):
-        for v in ["dense", "woodbury", "adam"]:
+        for v in ["dense", "woodbury", "cg", "adam"]:
             for n in ns:
                 rows = sorted((r for r in results if (r["kind"], r["variant"], r["n"]) == (kind, v, n)), key=lambda r: r["p"])
                 pts = [(r["p"], r["result"][j]) for r in rows if fits(r)]
@@ -157,7 +164,7 @@ def summary_plot(results, path, kind="ins", ns=(1000, 16000, 64000)):
     axs[1].set_ylim(top=MAX_GB * 4)  ## room for the label above the memory limit
     axs[1].axhline(MAX_GB, c="gray", lw=0.8)
     axs[1].text(axs[1].get_xlim()[0] * 1.15, MAX_GB * 1.2, "GPU memory", color="gray", fontsize=8)
-    for v in ["dense", "woodbury", "adam"]:
+    for v in ["dense", "woodbury", "cg", "adam"]:
         axs[0].plot([], [], c=COLORS[v], label=LABELS[v])
     for n in ns:
         axs[0].plot([], [], c="gray", ls=styles[n], label=f"$N$ = {n:,}")
@@ -169,14 +176,15 @@ def summary_plot(results, path, kind="ins", ns=(1000, 16000, 64000)):
 
 
 def table(results):
-    rows = ["| residuals | width | p | N | " + " | ".join(LABELS[v] + " (s / GB)" for v in VARIANTS) + " |",
+    rows = ["| residuals | width | p | N | " + " | ".join(LABELS[v] + " (s / GB [/ CG iterations])" for v in VARIANTS) + " |",
             "|---" * (4 + len(VARIANTS)) + "|"]
     configs = sorted({(r["kind"], r["width"], r["p"], r["n"]) for r in results})
     for kind, width, p, n in configs:
         cells = []
         for v in VARIANTS:
             res = next((r["result"] for r in results if (r["kind"], r["width"], r["n"], r["variant"]) == (kind, width, n, v)), None)
-            cells.append("-" if res is None else "OOM" if res == "oom" else f"{res[0]:.2e} / {res[1]:.2f}")
+            cells.append("-" if res is None else "OOM" if res == "oom" else
+                         f"{res[0]:.2e} / {res[1]:.2f}" + (f" / {res[2]} it (sketch {res[3]:.2e} s)" if len(res) > 2 else ""))
         rows.append(f"| {kind} | {width} | {p} | {n} | " + " | ".join(cells) + " |")
     return "\n".join(rows)
 

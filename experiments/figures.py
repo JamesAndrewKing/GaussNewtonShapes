@@ -2,7 +2,7 @@
 Paper figures from finished runs (no training), e.g.
 
     python -m experiments.figures --task catenoid
-    python -m experiments.figures --task catenoid --runs gn_seed0 gn_seed4 --name nonunique --paper
+    python -m experiments.figures --task catenoid --runs gn_seed0 gn_seed4 --name seeds
 
 Writes the paper figures to paper_figures/ (prefix <task>, or <task>_<exp> for exp != main, plus --suffix):
     <prefix>_loss.png, <prefix>_chamfer.png               training curves

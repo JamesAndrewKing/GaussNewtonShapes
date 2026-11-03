@@ -40,6 +40,12 @@ class Enneper(CurvatureTask):
         t = math.radians(self.tilt)
         return math.cos(t) * x[:, 2] - math.sin(t) * x[:, 1] - self.offset
 
+    def slice_curves(self):
+        """The true surface in the plane y = 0 (v = 0), as an (x, z) curve (experiments.slices)."""
+        u = torch.linspace(-self.r_max, self.r_max, 200, dtype=torch.float64)
+        p = enneper(u, torch.zeros_like(u))
+        return {"Enneper surface": [(p[:, 0], p[:, 2])]}
+
     @staticmethod
     def uv_from_xy(x, y, n_steps=20, n_iter=5):
         """

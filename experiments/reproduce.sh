@@ -115,6 +115,17 @@ if want adam_long; then
   for t in catenoid enneper cone rockerarm bunny jeb; do go $t adam 0 3600 adam_3600 --eval-every 10; done
 fi
 
+## slices: the catenoid over the first 300 s with the model stored at fixed times (Section 4.1); and GN from the cylinder
+## of radius 0.5, where seed 0 ends at the two discs (Goldschmidt solution) and seed 1 at the catenoid (appendix)
+if want slices; then
+  T="0 1 2 5 10 20 50 100 200 300"
+  for o in adam lbfgs gn; do go catenoid $o 0 300 slices --snapshots $T; done
+  for s in 0 1; do go catenoid gn $s 300 slices --task-args init_radius=0.5 pretrain_extent=2.0 --snapshots $T; done
+  py -m experiments.slices --task catenoid --runs adam_seed0 lbfgs_seed0 gn_seed0 --labels Adam LBFGS GN --times 0 1 5 20 100 300 --paper
+  C=gn_init_radius0.5_pretrain_extent2.0_seed
+  py -m experiments.slices --task catenoid --runs ${C}0 ${C}1 --labels "seed 0" "seed 1" --times 0 1 5 10 20 300 --name slices_thin_cylinder
+fi
+
 ## scaling: cost of one update against p and N (no training; results are merged into results/scaling/scaling.json)
 if want scaling; then
   py -m experiments.scaling --variants dense woodbury adam residual
@@ -127,7 +138,6 @@ fi
 if want figures; then
   for t in catenoid enneper cone rockerarm bunny jeb; do py -m experiments.figures --task $t; done
   py -m experiments.figures --task jeb --suffix _strain_clip1000 --loss-terms strain
-  py -m experiments.figures --task catenoid --runs gn_seed0 gn_seed4 --name nonunique --paper
   C=_pretrain_extent2.0_seed
   py -m experiments.figures --task catenoid --exp init_sweep --name init_sweep --starts --paper --labels "seed 0" "seed 1" "" "" "" \
     --runs gn_init_radius0.5${C}0 gn_init_radius0.5${C}1 gn_init_radius1.0${C}0 gn_init_radius1.543${C}0 gn_init_radius1.8${C}0

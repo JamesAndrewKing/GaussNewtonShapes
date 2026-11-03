@@ -8,6 +8,7 @@ Writes to experiments/results/<task>/<exp>/<opt><tag><task args>_seed<seed>/:
     log.json     reported loss and unweighted loss terms at every iteration
     evals.json   error metrics every --eval-every seconds of training time, and at the end
     best.pt, final.pt  model state dicts
+    snapshots.pt  with --snapshots: the model at the given training times (for experiments.slices)
 
 Optimizers: gn, adam, lbfgs, lm (Levenberg-Marquardt), and the hybrids adam_lbfgs and adam_gn, which switch from Adam
 to the second optimizer after SWITCH_FRACTION of the budget (the usual Adam -> LBFGS recipe of PINNs).
@@ -116,7 +117,7 @@ def train_step(optim, params, res_terms, update):
 
 
 def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt_args={}, device="cuda", tag="",
-        resample_in_closure=False, exp="main", freeze_samples=False, task_attrs={}, restart_period=None):
+        resample_in_closure=False, exp="main", freeze_samples=False, task_attrs={}, restart_period=None, snapshots=()):
     torch.set_default_device(device)
     task = TASKS[task_name](**task_args)
     for k, v in task_attrs.items():  ## e.g. eikonal_weights={"lbfgs": 0.1}; dicts are merged into the task's
@@ -142,7 +143,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     config = dict(
         task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget, eval_every=eval_every,
         resample_in_closure=resample_in_closure, freeze_samples=freeze_samples, task_attrs=task_attrs,
-        restart_period=restart_period,
+        restart_period=restart_period, snapshots=list(snapshots),
         n_params=sum(p.numel() for p in model.parameters()),
         device=torch.cuda.get_device_name(0), torch=torch.__version__,
         commit=subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip(),
@@ -155,10 +156,14 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     best_loss = float('inf')
     best_state = {k: v.clone() for k, v in model.state_dict().items()}
     clock = Clock()
+    snapshot_times, snaps = sorted(snapshots), []
 
     for i in (pbar := trange(10**7, mininterval=10)):
         if clock.elapsed >= len(evals) * eval_every:
             evals.append({"time": clock.elapsed, "iter": i, **task.evaluate(model, res_lib)})
+        while snapshot_times and clock.elapsed >= snapshot_times[0]:  ## the model at the first step past each time
+            snaps.append({"time": clock.elapsed, "iter": i, "state": {k: v.clone() for k, v in model.state_dict().items()}})
+            snapshot_times.pop(0)
         if clock.elapsed >= budget:
             break
 
@@ -191,6 +196,8 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
 
     torch.save(model.state_dict(), os.path.join(out_dir, "final.pt"))
     torch.save(best_state, os.path.join(out_dir, "best.pt"))
+    if snaps:
+        torch.save(snaps, os.path.join(out_dir, "snapshots.pt"))
     final = {"iters": i, "time": clock.elapsed, "loss": log["loss"][-1], **task.evaluate(model, res_lib, final=True)}
     model.load_state_dict(best_state)
     best = {"loss": best_loss, **task.evaluate(model, res_lib, final=True)}
@@ -216,8 +223,9 @@ if __name__ == "__main__":
     parser.add_argument("--freeze-samples", action="store_true", help="sample the moving points once and keep them fixed")
     parser.add_argument("--task-attrs", nargs="*", default=[], help='override task attributes, e.g. eikonal_weights={"lbfgs":0.1}')
     parser.add_argument("--restart-period", type=int, help="Adam: cosine annealing with warm restarts, first period in steps")
+    parser.add_argument("--snapshots", nargs="*", type=float, default=[], help="training times in s at which to store the model")
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
     run(args.task, args.opt, args.seed, args.budget, args.eval_every,
         parse_kv(args.task_args), parse_kv(args.opt_args), args.device, args.tag, args.resample_in_closure, args.exp,
-        args.freeze_samples, parse_kv(args.task_attrs), args.restart_period)
+        args.freeze_samples, parse_kv(args.task_attrs), args.restart_period, args.snapshots)

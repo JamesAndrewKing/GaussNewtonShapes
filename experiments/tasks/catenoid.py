@@ -89,6 +89,16 @@ class Catenoid(CurvatureTask):
         r = self.c * torch.cosh(z / self.c)
         return torch.vstack([r * torch.cos(phi), r * torch.sin(phi), z]).T
 
+    def slice_curves(self):
+        """The true surface and the discs in the plane y = 0, as (x, z) curves (experiments.slices)."""
+        z = torch.linspace(-self.h, self.h, 200, dtype=torch.float64)
+        x = torch.linspace(-self.R, self.R, 2, dtype=torch.float64)
+        curves = {"discs": [(x, torch.full_like(x, self.h)), (x, torch.full_like(x, -self.h))]}
+        if self.c is not None:
+            r = self.c * torch.cosh(z / self.c)
+            curves = {"catenoid": [(r, z), (-r, z)], **curves}
+        return curves
+
     def level_set(self, p):
         return p[:, 0]**2 + p[:, 1]**2 - (self.c * torch.cosh(p[:, 2] / self.c))**2
 

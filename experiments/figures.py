@@ -13,7 +13,8 @@ and the interactive scenes to experiments/results/<task>/<exp>/k3d/:
     heatmap_<opt>.html / surfaces_<opt>.html              one optimizer per file (e.g. for the README)
 With --runs, only the given runs are rendered side by side in the same style, to k3d/<name>.html and k3d/<name>.png
 (e.g. to compare seeds or inspect failures); --paper writes the PNG to paper_figures/<task>_<name>.png instead.
---starts adds a row above with each run's starting shape (its pretrained model, plain gray).
+--starts adds a row above with each run's starting shape (its pretrained model, plain gray); --labels writes a label
+below each column.
 --loss-terms adds weighted loss terms to the loss plot (dashed), e.g. --loss-terms strain for the JEB.
 The PNG of the k3d scene is rendered with headless Chrome via selenium.
 """
@@ -152,20 +153,26 @@ def k3d_screenshot(html_path, width, height, scale=2):
     return img.crop(ImageOps.invert(img).getbbox())
 
 
-def heatmap_figure(img, color_range, paths, width=7.0, ticks=None):
-    """The rendered scene, with a colorbar on the left if color_range is given (Figure 1a)."""
+def heatmap_figure(img, color_range, paths, width=7.0, ticks=None, labels=None):
+    """
+    The rendered scene, with a colorbar on the left if color_range is given (Figure 1a), and optionally a label below
+    each of the side-by-side surfaces (labels: one string per column, "" for none).
+    """
+    margin = 0.08 if labels else 0.0  ## fraction of the figure height below the image for the labels
     with plt.rc_context({"font.family": "serif", "font.serif": ["cmr10"], "axes.formatter.use_mathtext": True}):
         if color_range is None:
-            fig = plt.figure(figsize=(width, width * img.height / img.width))
-            ax_img = fig.add_axes([0, 0, 1, 1])
+            fig = plt.figure(figsize=(width, width * img.height / img.width / (1 - margin)))
+            ax_img = fig.add_axes([0, margin, 1, 1 - margin])
         else:
-            fig = plt.figure(figsize=(width, 0.9 * width * img.height / img.width))
-            ax_img = fig.add_axes([0.13, 0.0, 0.87, 1.0])
+            fig = plt.figure(figsize=(width, 0.9 * width * img.height / img.width / (1 - margin)))
+            ax_img = fig.add_axes([0.13, margin, 0.87, 1.0 - margin])
             ax_cbar = fig.add_axes([0.02, 0.12, 0.015, 0.76])
             fig.colorbar(plt.cm.ScalarMappable(norm=Normalize(*color_range), cmap="jet"), cax=ax_cbar,
                          ticks=np.linspace(*color_range, 6) if ticks is None else ticks)
         ax_img.imshow(img)
         ax_img.axis("off")
+        for i, label in enumerate(labels or []):
+            ax_img.text((i + 0.5) * img.width / len(labels), img.height * 1.02, label, ha="center", va="top", fontsize=10)
         for path in paths:
             fig.savefig(path, dpi=300)
         plt.close(fig)
@@ -182,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument("--paper", action="store_true", help="--runs: write the PNG to paper_figures/")
     parser.add_argument("--device", default="cuda", help="cpu works too, but the renders take much longer")
     parser.add_argument("--starts", action="store_true", help="--runs: add a row with the starting shapes")
+    parser.add_argument("--labels", nargs="*", help='--runs: a label below each column, e.g. "seed 0" "seed 1" "" ""')
     parser.add_argument("--loss-terms", nargs="*", default=[], help="weighted loss terms to add to the loss plot, e.g. strain")
     args = parser.parse_args()
 
@@ -208,7 +216,7 @@ if __name__ == "__main__":
             stacked.paste(top, ((stacked.width - top.width) // 2, 0))
             stacked.paste(img, ((stacked.width - img.width) // 2, stacked.height - img.height))
             img = stacked
-        heatmap_figure(img, task.heatmap.get("color_range"), [png_path], ticks=task.heatmap.get("ticks"))
+        heatmap_figure(img, task.heatmap.get("color_range"), [png_path], ticks=task.heatmap.get("ticks"), labels=args.labels)
         print(f"{args.name} order (left to right):", ", ".join(args.runs))
         raise SystemExit
     runs = load_runs(exp_dir, [opt + args.suffix for opt in task.figure_opts], args.seed)

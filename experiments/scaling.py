@@ -20,7 +20,8 @@ Writes to experiments/results/scaling/ (new measurements are merged into an exis
                                     limit
     <kind>_vs_p.png, <kind>_vs_n.png   all measurements: against p (one line per N) and against N (one line per width)
 Configurations above the GPU memory count as out of memory (under Windows they spill into system memory instead).
-With --plot-only, the figures and the table are made from scaling.json without measuring.
+With --plot-only, the figures and the table are made from scaling.json without measuring; --paper also writes the
+summary to paper_figures/scaling.png.
 """
 
 import argparse
@@ -197,6 +198,7 @@ if __name__ == "__main__":
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--variants", nargs="+", default=VARIANTS, choices=VARIANTS)
     parser.add_argument("--plot-only", action="store_true", help="only make the figures and the table from scaling.json")
+    parser.add_argument("--paper", action="store_true", help="also write the summary to paper_figures/scaling.png")
     args = parser.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -224,6 +226,8 @@ if __name__ == "__main__":
         plot(results, kind, "p", "n", os.path.join(OUT_DIR, f"{kind}_vs_p.png"))
         plot(results, kind, "n", "width", os.path.join(OUT_DIR, f"{kind}_vs_n.png"))
     summary_plot(results, os.path.join(OUT_DIR, "summary.png"))
+    if args.paper:
+        summary_plot(results, os.path.join(os.path.dirname(os.path.dirname(__file__)), "paper_figures", "scaling.png"))
     with open(os.path.join(OUT_DIR, "scaling.md"), "w") as f:
         f.write(f"## Cost per update on {data['device']}, float64\n\n{table(results)}\n")
     print(table(results))

@@ -140,7 +140,7 @@ def run(task_name, opt_name, seed=0, budget=600, eval_every=5, task_args={}, opt
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, restart_period, T_mult=2) if restart_period else None
 
     config = dict(
-        task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget,
+        task=task_name, task_args=task_args, opt=opt_name, opt_args=opt_kwargs, seed=seed, budget=budget, eval_every=eval_every,
         resample_in_closure=resample_in_closure, freeze_samples=freeze_samples, task_attrs=task_attrs,
         restart_period=restart_period,
         n_params=sum(p.numel() for p in model.parameters()),

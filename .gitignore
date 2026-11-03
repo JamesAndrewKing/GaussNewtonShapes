@@ -11,6 +11,7 @@ configs/running
 configs/finished
 
 *.sh
+!experiments/reproduce.sh
 **/*.aux
 **/*.log
 **/*.nav

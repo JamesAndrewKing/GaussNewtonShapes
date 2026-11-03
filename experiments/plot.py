@@ -40,7 +40,8 @@ def load_runs(exp_dir, names, seed):
     return runs
 
 
-def plot_over_time(runs, key, ylabel, paths, paper_file=None):
+def plot_over_time(runs, key, ylabel, paths, paper_file=None, terms={}):
+    """terms: {name: weight} of loss terms drawn dashed below the loss (key "loss" only), e.g. the JEB's strain."""
     fig, ax = plt.subplots(1, 1, figsize=(5, 3))
     for name, (log, evals) in runs.items():
         opt, label = split_name(name)
@@ -49,11 +50,15 @@ def plot_over_time(runs, key, ylabel, paths, paper_file=None):
         else:
             t, v = zip(*[(e["time"], e[key]) for e in evals["over_time"]])
         ax.plot(t, v, label=label, c=COLORS[opt], ls='-' if label == LABELS[opt] else ':')
+        for term, weight in terms.items():
+            ax.plot(t, [weight * x if x is not None else float('nan') for x in log[term]], c=COLORS[opt], ls='--', lw=0.8)
         if paper_file and label == LABELS[opt] and os.path.exists(paper_file.format(opt)):
             stored = torch.load(paper_file.format(opt), weights_only=False)
             ax.plot(list(stored.keys()), list(stored.values()), c=COLORS[opt], ls='--', lw=0.8, alpha=0.7)
     if paper_file:
         ax.plot([], [], c='gray', ls='--', lw=0.8, label="paper run")
+    for term in terms:
+        ax.plot([], [], c='gray', ls='--', lw=0.8, label=f"{term} term")
     ax.set_xlabel("Time in [s]")
     ax.set_ylabel(ylabel)
     ax.semilogy()

@@ -13,12 +13,15 @@ and the interactive scenes to experiments/results/<task>/<exp>/k3d/:
     heatmap_<opt>.html / surfaces_<opt>.html              one optimizer per file (e.g. for the README)
 With --runs, only the given runs are rendered side by side in the same style, to k3d/<name>.html and k3d/<name>.png
 (e.g. to compare seeds or inspect failures); --paper writes the PNG to paper_figures/<task>_<name>.png instead.
+--starts adds a row above with each run's starting shape (its pretrained model, plain gray).
+--loss-terms adds weighted loss terms to the loss plot (dashed), e.g. --loss-terms strain for the JEB.
 The PNG of the k3d scene is rendered with headless Chrome via selenium.
 """
 
 import argparse
 import base64
 import io
+import json
 import os
 import pathlib
 import k3d
@@ -55,17 +58,31 @@ def display_orientation(task, x):
     return (x @ R.T).astype(x.dtype)
 
 
-def surface_mesh(task, run_dir, N=256):
-    """Marching-cubes mesh of the best model, with the task's surface attribute (|curvature|, log strain) if it has one."""
+def pretrained_path(task_name, run_dir):
+    """The pretrained model a run started from (named as in experiments.run)."""
+    with open(os.path.join(run_dir, "config.json")) as f:
+        config = json.load(f)
+    args_str = "".join(f"_{k}{v}" for k, v in config["task_args"].items())
+    return os.path.join(RESULTS_DIR, config["task"], "pretrained", f"seed{config['seed']}{args_str}.pt")
+
+
+def surface_mesh(task, run_dir, N=256, attribute=True):
+    """
+    Marching-cubes mesh of the best model (or of the checkpoint run_dir, if it is a .pt file), with the task's surface
+    attribute (|curvature|, log strain) if it has one and attribute is True.
+    """
     model = task.model()
-    model.load_state_dict(torch.load(os.path.join(run_dir, "best.pt")))
+    path = run_dir if run_dir.endswith(".pt") else os.path.join(run_dir, "best.pt")
+    model.load_state_dict(torch.load(path, map_location=torch.get_default_device()))
     bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in task.mesh_bbox)
-    verts, faces = get_mesh(lambda x: model(x.double()), N=N, device='cuda', bbox_min=bbox_min, bbox_max=bbox_max, chunks=2)
+    verts, faces = get_mesh(lambda x: model(x.double()), N=N, device=torch.get_default_device(), bbox_min=bbox_min, bbox_max=bbox_max, chunks=2)
     if getattr(task, "largest_component_only", False):
         component = largest_component(verts, faces)[0]
         verts, faces = np.asarray(component.vertices), np.asarray(component.faces)
     k = None
-    if hasattr(task, "surface_attribute"):
+    if not attribute:
+        pass
+    elif hasattr(task, "surface_attribute"):
         k = task.surface_attribute(model, verts)
     elif hasattr(task, "curvature"):
         ## Curvature of the zero set at the vertices projected onto it: the marching-cubes vertices lie up to a cell off
@@ -163,9 +180,12 @@ if __name__ == "__main__":
     parser.add_argument("--runs", nargs="*", help="only render these runs side by side, e.g. gn_seed0 gn_seed4")
     parser.add_argument("--name", default="runs", help="figure name for --runs")
     parser.add_argument("--paper", action="store_true", help="--runs: write the PNG to paper_figures/")
+    parser.add_argument("--device", default="cuda", help="cpu works too, but the renders take much longer")
+    parser.add_argument("--starts", action="store_true", help="--runs: add a row with the starting shapes")
+    parser.add_argument("--loss-terms", nargs="*", default=[], help="weighted loss terms to add to the loss plot, e.g. strain")
     args = parser.parse_args()
 
-    torch.set_default_device('cuda')
+    torch.set_default_device(args.device)
     task = TASKS[args.task]()
     exp_dir = os.path.join(RESULTS_DIR, args.task, args.exp)
     k3d_dir = os.path.join(exp_dir, "k3d" + args.suffix)
@@ -178,8 +198,17 @@ if __name__ == "__main__":
         with open(html_path, "w") as f:
             f.write(k3d_scene(task, meshes).get_snapshot())
         png_path = os.path.join(PAPER_FIGURES_DIR, f"{args.task}_{args.name}.png") if args.paper else html_path[:-5] + ".png"
-        heatmap_figure(k3d_screenshot(html_path, 800 * len(meshes), 800), task.heatmap.get("color_range"), [png_path],
-                       ticks=task.heatmap.get("ticks"))
+        img = k3d_screenshot(html_path, 800 * len(meshes), 800)
+        if args.starts:
+            starts = [surface_mesh(task, pretrained_path(args.task, os.path.join(exp_dir, run)), attribute=False) for run in args.runs]
+            with open(html_path[:-5] + "_starts.html", "w") as f:
+                f.write(k3d_scene(task, starts).get_snapshot())
+            top = k3d_screenshot(html_path[:-5] + "_starts.html", 800 * len(starts), 800)
+            stacked = Image.new("RGB", (max(top.width, img.width), top.height + img.height + img.height // 10), "white")
+            stacked.paste(top, ((stacked.width - top.width) // 2, 0))
+            stacked.paste(img, ((stacked.width - img.width) // 2, stacked.height - img.height))
+            img = stacked
+        heatmap_figure(img, task.heatmap.get("color_range"), [png_path], ticks=task.heatmap.get("ticks"))
         print(f"{args.name} order (left to right):", ", ".join(args.runs))
         raise SystemExit
     runs = load_runs(exp_dir, [opt + args.suffix for opt in task.figure_opts], args.seed)
@@ -188,7 +217,7 @@ if __name__ == "__main__":
     out = lambda name: [os.path.join(PAPER_FIGURES_DIR, f"{prefix}_{name}.png")]
 
     ## Training curves
-    plot_over_time(runs, "loss", "Loss", out("loss"))
+    plot_over_time(runs, "loss", "Loss", out("loss"), terms={k: getattr(task, f"{k}_weight", 1.0) for k in args.loss_terms})
     if all("cd" in evals["best"] for _, evals in runs.values()):
         plot_over_time(runs, "cd", "Chamfer distance", out("chamfer"))
 

@@ -18,7 +18,8 @@ class Cone(CurvatureTask):
     opt_defaults = {**CurvatureTask.opt_defaults, "adam": dict(lr=1e-4)}
     paper_data = "notebooks/Data Cone/{}_over_time_cone_{}.pth"
     mesh_bbox = ((-2, -2, -0.05), (2, 2, 1.05))
-    heatmap = dict(color_range=(0, 0.005), elevation=25, azimuth=0, gap=0.08)  ## Figure 3a
+    heatmap = dict(color_range=(0, 0.002), elevation=25, azimuth=0, gap=0.08)  ## Figure 3a
+    slice_box = ((-1.3, -0.4), (1.3, 1.4))  ## for experiments.slices (mesh_bbox is too flat)
 
     def __init__(self, r_bottom=1.0, r_top=0.4, height=1.0):
         self.r_bottom, self.r_top, self.height = r_bottom, r_top, height
@@ -39,6 +40,13 @@ class Cone(CurvatureTask):
     @staticmethod
     def circle(r, z, t):
         return torch.vstack([r * torch.sin(t), r * torch.cos(t), torch.zeros_like(t) + z]).T
+
+    def slice_curves(self):
+        """The true mantle and the planes through the circles in the plane y = 0, as (x, z) curves (experiments.slices)."""
+        z = torch.linspace(0, self.height, 2, dtype=torch.float64)
+        x = torch.linspace(-1.3, 1.3, 2, dtype=torch.float64)
+        return {"cone": [(self.radius(z), z), (-self.radius(z), z)],
+                "planes": [(x, torch.zeros_like(x)), (x, torch.full_like(x, self.height))]}
 
     def level_set(self, p):
         return p[:, 0]**2 + p[:, 1]**2 - self.radius(p[:, 2])**2

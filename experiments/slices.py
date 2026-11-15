@@ -5,7 +5,7 @@ The model f on the plane y = 0 over training time (Section 3.1), from runs with 
 
 One row per run, one column per time (the snapshot closest to it). Each panel shows f (colour; fading to white means f
 shrinks towards 0), its zero set (black), the true surface (dashed), other solutions (dotted) and the boundary points
-in the plane (dots). The plane is the box of task.mesh_bbox in x and z.
+in the plane (dots). The plane is task.slice_box ((x0, z0), (x1, z1)) if the task has one, else task.mesh_bbox in x and z.
 Writes experiments/results/<task>/<exp>/<name>.png, or paper_figures/<task>_<name>.png with --paper (default name: slices).
 """
 
@@ -22,12 +22,14 @@ PAPER_FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "pa
 
 def slices_figure(task, run_dirs, labels, times, path, vmax=1.0, n=201):
     (x0, _, z0), (x1, _, z1) = task.mesh_bbox
+    if hasattr(task, "slice_box"):
+        (x0, z0), (x1, z1) = task.slice_box
     X, Z = torch.meshgrid(torch.linspace(x0, x1, n, dtype=torch.float64), torch.linspace(z0, z1, n, dtype=torch.float64), indexing="ij")
     pts = torch.stack([X.flatten(), torch.zeros(X.numel(), dtype=torch.float64), Z.flatten()], 1)
     bd = task.pts_boundary.cpu()
     bd = bd[bd[:, 1].abs() < 1e-2]
     model = task.model()
-    w = 2.0 * (x1 - x0) / (z1 - z0)
+    w = max(2.0 * (x1 - x0) / (z1 - z0), 2.6)  ## panel width; at least the width of the title
     fig, axs = plt.subplots(len(run_dirs), len(times), figsize=(w * len(times), 2.0 * len(run_dirs)), squeeze=False)
     for r, (row, run_dir, label) in enumerate(zip(axs, run_dirs, labels)):
         snaps = torch.load(os.path.join(run_dir, "snapshots.pt"), map_location=pts.device)

@@ -94,9 +94,9 @@ fi
 
 ## noise_sparse: noisy points and normals, and a fraction of the points (error on the held-out rest), 600 s
 if want noise_sparse; then
-  for t in rockerarm bunny; do for o in gn adam; do
+  for t in rockerarm bunny; do for o in gn adam lbfgs; do
     for n in 0.0025 0.005 0.01; do go $t $o 0 600 noise --task-args noise=$n; done
-    for f in 0.2 0.3; do go $t $o 0 600 sparse --task-args subsample_fraction=$f; done
+    for f in 0.05 0.2 0.3; do go $t $o 0 600 sparse --task-args subsample_fraction=$f; done
   done; done
 fi
 
@@ -115,13 +115,17 @@ if want adam_long; then
   for t in catenoid enneper cone rockerarm bunny jeb; do go $t adam 0 3600 adam_3600 --eval-every 10; done
 fi
 
-## slices: the catenoid over the first 300 s with the model stored at fixed times (Section 4.1); and GN from the cylinder
-## of radius 0.5, where seed 0 ends at the two discs (Goldschmidt solution) and seed 1 at the catenoid (appendix)
+## slices: the catenoid, Enneper and the cone over the first 300 s with the model stored at fixed times (Section 4.1);
+## and GN from the cylinder of radius 0.5, where seed 0 ends at the two discs (Goldschmidt solution) and seed 1 at the
+## catenoid (appendix)
 if want slices; then
   T="0 1 2 5 10 20 50 100 200 300"
-  for o in adam lbfgs gn; do go catenoid $o 0 300 slices --snapshots $T; done
+  for t in catenoid enneper cone; do for o in adam lbfgs gn; do go $t $o 0 300 slices --snapshots $T; done; done
   for s in 0 1; do go catenoid gn $s 300 slices --task-args init_radius=0.5 pretrain_extent=2.0 --snapshots $T; done
   py -m experiments.slices --task catenoid --runs adam_seed0 lbfgs_seed0 gn_seed0 --labels Adam LBFGS GN --times 0 1 5 20 100 300 --paper
+  for t in enneper cone; do
+    py -m experiments.slices --task $t --runs adam_seed0 lbfgs_seed0 gn_seed0 --labels Adam LBFGS GN --times 0 1 5 20 100 300
+  done
   C=gn_init_radius0.5_pretrain_extent2.0_seed
   py -m experiments.slices --task catenoid --runs ${C}0 ${C}1 --labels "seed 0" "seed 1" --times 0 1 5 10 20 300 --name slices_thin_cylinder
 fi
@@ -130,6 +134,8 @@ fi
 if want scaling; then
   py -m experiments.scaling --variants dense woodbury adam residual
   py -m experiments.scaling --variants dense adam residual --ns 32000 64000 128000 --widths 16 32 64
+  py -m experiments.scaling --kinds ins --variants dense adam residual --ns 32000 64000 128000 --widths 128 256
+  py -m experiments.scaling --kinds ins --variants woodbury --ns 32000 64000 128000  ## out of memory, without measuring
   py -m experiments.scaling --variants cg
   py -m experiments.scaling --kinds ins --variants cg --ns 32000 64000 128000
 fi

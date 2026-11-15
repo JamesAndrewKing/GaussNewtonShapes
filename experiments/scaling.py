@@ -41,7 +41,7 @@ OUT_DIR = os.path.join(RESULTS_DIR, "scaling")
 VARIANTS = ["dense", "woodbury", "cg", "cg_plain", "adam", "residual"]
 LABELS = {"dense": r"GN, dense $J^TJ$", "woodbury": r"GN, Woodbury $JJ^T$", "cg": "GN, matrix-free",
           "cg_plain": "GN, matrix-free, no preconditioner", "adam": "Adam", "residual": "Residual evaluation"}
-MAX_GB = 16.0  ## GPU memory (RTX 5080); dense configurations whose p x p matrix alone exceeds a third of it are not tried
+MAX_GB = 16.0  ## GPU memory (RTX 5080); dense (Woodbury) configurations whose p x p (N x N) matrix alone exceeds a third of it are not tried
 COLORS = {"dense": "tab:green", "woodbury": "tab:pink", "cg": "black", "cg_plain": "tab:gray", "adam": "tab:blue"}  ## GN and Adam as in the paper figures
 
 
@@ -89,6 +89,8 @@ def measure(kind, width, n, variant, repeats):
     model, res_terms = setup(kind, width, n)
     p = sum(q.numel() for q in model.parameters())
     if variant == "dense" and 8 * p ** 2 / 1e9 > MAX_GB / 3:  ## J^T J, J^T J + eps I and the solver's copy
+        return p, "oom"
+    if variant == "woodbury" and 8 * n ** 2 / 1e9 > MAX_GB / 3:  ## the same for the N x N matrix J J^T
         return p, "oom"
     gn = GaussNewtonNew(model, res_terms)
     if variant == "adam":

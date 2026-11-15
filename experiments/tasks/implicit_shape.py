@@ -21,7 +21,7 @@ NOTEBOOKS_DIR = __file__.rsplit("experiments", 1)[0] + "notebooks/"
 
 class ImplicitShapeTask:
     loss_keys = ["data", "normal"]
-    eikonal_weights = {"gn": 1e-2, "adam": 1e-1, "lbfgs": 1e-1}
+    eikonal_weights = {"gn": 1e-2, "adam": 1e-1, "lbfgs": 1e-1}  ## LBFGS: sweep over 1 ... 1e-4 (seed 0), best two checked on 5 seeds
     opt_defaults = {
         "gn":    dict(lr=1e-1, regularization=1e-6, do_line_search=True),
         "adam":  dict(lr=1e-3),  ## the cosine schedule of the notebooks was never stepped

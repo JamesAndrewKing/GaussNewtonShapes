@@ -173,9 +173,8 @@ class RockerArm(ImplicitShapeTask):
 
 
 class Bunny(ImplicitShapeTask):
-    """Settings of commit 477423d, which produced the stored GN curve of Figure 5: 5000 eikonal points and GaussNewton's line search."""
     mesh_file = "bun_zipper.ply"
-    n_eikonal = 5000
+    n_eikonal = 10000
     gn_class = GaussNewton
     paper_data = "notebooks/Data Bunny/{}_over_time_bunny_{}.pth"
     heatmap = dict(elevation=10, azimuth=0, gap=0.05, rotate=[("x", 90)])  ## Figure 5a: the mesh has y up

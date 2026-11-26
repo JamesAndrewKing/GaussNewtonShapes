@@ -12,8 +12,7 @@ and for all tasks together:
     experiments/results/seeds.md                        median [interquartile range] of the best models and outcome counts
 The figures show the optimizers of the paper figures (task.figure_opts); the table shows all optimizers with runs.
 On the minimal and developable surfaces (exact ground truth), each run is classified by outcome() into reaching the
-target surface, an alternative solution of the loss, or a failure. The other tasks have no such classification;
-artifacts such as spurious sheets show up in the Hausdorff distance.
+target surface, an alternative solution of the loss, or a failure. The other tasks have no such classification.
 """
 
 import argparse
@@ -29,8 +28,7 @@ FAIL_CD = 1e-2
 TITLES = {"rockerarm": "Rocker arm", "jeb": "JEB (loss)"}
 SEEDS = {"jeb": [0, 1, 2]}           ## default: 0-4
 RUN_SUFFIX = {"jeb": "_pretrainedown"}  ## the JEB seeds are pretrained per seed
-TABLE_KEYS = {"rockerarm": ["loss", "cd", "hausdorff"], "bunny": ["loss", "cd", "hausdorff"],
-              "jeb": ["loss", "interface_rms", "design_region_violation", "n_components"]}  ## default: loss, cd
+TABLE_KEYS = {"jeb": ["loss", "interface_rms", "design_region_violation", "n_components"]}  ## default: loss, cd
 
 
 def load_seeds(task_name):

@@ -1,7 +1,7 @@
 """
 Shared setup of the minimal and developable surface problems (Sections 4.1 and 4.2): an interface loss on a
 prescribed boundary curve plus a curvature loss on the moving surface, with an eikonal term for the first eikonal_off_time (50 s) of training time.
-Subclasses define the boundary, the true surface (exact distance, region of interest, area) and the figure settings.
+Subclasses define the boundary, the true surface (exact distance, region of interest) and the figure settings.
 """
 
 import torch
@@ -9,7 +9,7 @@ from models.model_architecture import GeneralNet
 from training.residuals import ResidualTerm
 from util.surface_sampling import sample_model_surface_binsearch, sample_model_surface_newton
 from util.error_metrics import chamfer_div
-from experiments.metrics import project_to_model, chamfer, curvature_stats, clipped_mesh_area, rms, maximum
+from experiments.metrics import project_to_model, chamfer, curvature_stats, rms, maximum
 
 
 class CurvatureTask:
@@ -25,7 +25,7 @@ class CurvatureTask:
         "lbfgs": dict(line_search_fn="strong_wolfe"),  ## otherwise torch defaults (lr=1, max_iter=20, history_size=100)
     }
     figure_opts = ["adam", "lbfgs", "gn"]  ## optimizers shown in the paper figures, left to right
-    table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "hausdorff", "interface_rms", "curv_rms", "curv_max", "area_err_discrete"]
+    table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "interface_rms", "curv_rms", "curv_max"]
     pretrain_extent = 1.0  ## pretraining points in [-extent, extent]^3
     sample_extent = 1.0    ## surface samples (training and evaluation) in [-extent, extent]^3
 
@@ -70,14 +70,6 @@ class CurvatureTask:
             pts_surface = sample_model_surface_newton(model, self.res_lib, pts_surface)
         res_terms[self.curvature].points = pts_surface
 
-    def mesh_area(self, model, z_range):
-        """Mesh area of the model between two z-planes, relative to the analytic area and to the true surface meshed the same way."""
-        bbox_min, bbox_max = (torch.tensor(b, dtype=torch.float64) for b in self.mesh_bbox)
-        area = lambda f: clipped_mesh_area(f, bbox_min, bbox_max, z_range)
-        if getattr(self, "_area_true_mesh", None) is None:
-            self._area_true_mesh = area(self.level_set)
-        a = area(lambda x: model(x.double()))
-        return {"area": a, "area_err_analytic": a / self.area_true - 1, "area_err_discrete": a / self._area_true_mesh - 1}
 
     @torch.no_grad()
     def evaluate(self, model, res_lib, final=False):
@@ -106,6 +98,4 @@ class CurvatureTask:
             **curvature_stats(residual, params, pts_region, "curv"),
             **curvature_stats(residual, params, pts_model, "curv_box"),
         }
-        if final:
-            metrics.update(self.area(model))
         return metrics

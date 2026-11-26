@@ -32,8 +32,8 @@ class ImplicitShapeTask:
     ## Spurious components away from the data (seed dependent) are left out of the figures and the model-side metrics;
     ## the unfiltered metrics are kept with the suffix _all
     largest_component_only = True
-    table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "hausdorff", "interface_rms", "normal_consistency", "eikonal_rms",
-                  "cd_all", "hausdorff_all", "removed_area_fraction", "over_hole_fraction"]
+    table_keys = ["loss", "cd", "cd_t2m", "cd_m2t", "interface_rms", "normal_consistency", "eikonal_rms",
+                  "cd_all", "removed_area_fraction", "over_hole_fraction"]
     pretrain_extent = 1.5
 
     def __init__(self, subsample_fraction=1.0, noise=0.0, width=32, depth=3):

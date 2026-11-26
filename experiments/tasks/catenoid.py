@@ -37,6 +37,7 @@ def catenoid_c(h, R, stable=True):
 
 
 def catenoid_area(c, h):
+    """Area of the catenoid r = c cosh(z / c) for |z| <= h."""
     return math.pi * c * (2*h + c*math.sinh(2*h/c))
 
 
@@ -44,7 +45,7 @@ class Catenoid(CurvatureTask):
     paper_data = "notebooks/Data Catenoid/{}_over_time_catenoid_{}.pth"  ## stored paper runs: metric, optimizer
     ## Mean curvature is minimized on a box larger than the rings, so the surface stays smooth beyond them
     sample_extent = 2.0
-    mesh_bbox = ((-2, -2, -1.25), (2, 2, 1.25))  ## for the area and the heatmap
+    mesh_bbox = ((-2, -2, -1.25), (2, 2, 1.25))  ## for the heatmap
     heatmap = dict(color_range=(0, 0.002), elevation=20, azimuth=0, gap=0.05)  ## Figure 1a
 
     def __init__(self, c=1.0, h=1.0, init_radius=1.0, h_over_R=None, init="cylinder", pretrain_extent=1.0):
@@ -73,7 +74,6 @@ class Catenoid(CurvatureTask):
         if c is None:
             ## No catenoid: the true surface is the Goldschmidt solution
             self.pts_surface_true = self.pts_discs
-            self.area_true = 2 * math.pi * self.R**2
             self.distance_to_true, self.in_region = self.distance_to_discs, self.near_discs
             return
         ## True surface between the rings (64 x 128 grid in z and phi)
@@ -83,7 +83,6 @@ class Catenoid(CurvatureTask):
             indexing='ij',
         )
         self.pts_surface_true = self.surface_polar(z.flatten(), phi.flatten())
-        self.area_true = catenoid_area(c, h)
 
     def surface_polar(self, z, phi):
         r = self.c * torch.cosh(z / self.c)
@@ -98,9 +97,6 @@ class Catenoid(CurvatureTask):
             r = self.c * torch.cosh(z / self.c)
             curves = {"catenoid": [(r, z), (-r, z)], **curves}
         return curves
-
-    def level_set(self, p):
-        return p[:, 0]**2 + p[:, 1]**2 - (self.c * torch.cosh(p[:, 2] / self.c))**2
 
     def pretrain_target(self, x):
         if self.init == "planes":
@@ -148,10 +144,5 @@ class Catenoid(CurvatureTask):
             d_m2t = self.distance_to_discs(pts_model[self.near_discs(pts_model)])
             metrics.update({k + "_planes": v for k, v in chamfer(d_t2m, d_m2t).items()})
         else:
-            metrics.update({k + "_planes": metrics[k] for k in ["cd_t2m", "cd_m2t", "cd", "hausdorff"]})  ## same surface
+            metrics.update({k + "_planes": metrics[k] for k in ["cd_t2m", "cd_m2t", "cd"]})  ## same surface
         return metrics
-
-    def area(self, model):
-        if self.c is None:
-            return {}  ## the discrete reference area needs the catenoid's level set
-        return self.mesh_area(model, (-self.h, self.h))

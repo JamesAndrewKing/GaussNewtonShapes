@@ -8,7 +8,6 @@ import torch
 import trimesh
 from scipy.spatial import cKDTree
 from torch.func import vmap
-from util.visualization.utils_mesh import get_mesh
 
 
 @torch.no_grad()
@@ -43,7 +42,6 @@ def chamfer(d_true_to_model, d_model_to_true):
         "cd_t2m": t2m,
         "cd_m2t": m2t,
         "cd": 0.5 * (t2m + m2t),
-        "hausdorff": max(maximum(d_true_to_model), maximum(d_model_to_true)),
     }
 
 
@@ -71,11 +69,3 @@ def largest_component(verts, faces):
     component = mesh.submesh([np.flatnonzero(labels == main)], append=True)
     return component, on_main, len(areas), 1 - areas[main] / areas.sum()
 
-
-def clipped_mesh_area(f, bbox_min, bbox_max, z_range, N=256, chunks=2):
-    """Area of the marching-cubes mesh of {f=0}, clipped to z_range[0] <= z <= z_range[1]."""
-    verts, faces = get_mesh(f, N=N, device=bbox_min.device, bbox_min=bbox_min, bbox_max=bbox_max, chunks=chunks)
-    mesh = trimesh.Trimesh(verts, faces)
-    mesh = mesh.slice_plane(plane_origin=[0, 0, z_range[0]], plane_normal=[0, 0, 1])
-    mesh = mesh.slice_plane(plane_origin=[0, 0, z_range[1]], plane_normal=[0, 0, -1])
-    return float(mesh.area) if len(mesh.faces) else np.nan

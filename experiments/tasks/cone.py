@@ -5,7 +5,6 @@ Settings as for the paper figure (commit 3531425): optimizer-specific eikonal we
 Newton-refined surface samples.
 """
 
-import math
 import torch
 from experiments.tasks.curvature_task import CurvatureTask
 
@@ -32,7 +31,6 @@ class Cone(CurvatureTask):
             indexing='ij',
         )
         self.pts_surface_true = self.circle(self.radius(z.flatten()), z.flatten(), phi.flatten())
-        self.area_true = math.pi * (r_bottom + r_top) * math.hypot(r_bottom - r_top, height)
 
     def radius(self, z):
         return self.r_bottom + (self.r_top - self.r_bottom) * z / self.height
@@ -48,9 +46,6 @@ class Cone(CurvatureTask):
         return {"cone": [(self.radius(z), z), (-self.radius(z), z)],
                 "planes": [(x, torch.zeros_like(x)), (x, torch.full_like(x, self.height))]}
 
-    def level_set(self, p):
-        return p[:, 0]**2 + p[:, 1]**2 - self.radius(p[:, 2])**2
-
     def pretrain_target(self, x):
         ## Cylinder of radius 1
         return x[:, 0]**2 + x[:, 1]**2 - 1
@@ -65,6 +60,3 @@ class Cone(CurvatureTask):
         ab = torch.tensor([self.r_top - self.r_bottom, self.height], dtype=torch.float64)
         t = (((p - a) @ ab) / ab.dot(ab)).clamp(0, 1)
         return (p - a - t[:, None] * ab).norm(dim=1)
-
-    def area(self, model):
-        return self.mesh_area(model, (0.0, self.height))

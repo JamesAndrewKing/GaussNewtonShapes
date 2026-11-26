@@ -3,7 +3,7 @@ Plateau's problem for Enneper's surface (notebooks/enneper.ipynb, Section 4.1).
 The boundary is the image of the circle r = r_max under the parametrization
     X(u, v) = (u - u^3/3 + u v^2,  v - v^3/3 + v u^2,  u^2 - v^2).
 For r < 1 the patch is a graph over the xy-plane (the Jacobian of (u, v) -> (x, y) has determinant 1 - r^4),
-which gives the region of interest and an exact area element.
+which gives the region of interest.
 Initialization: the xy-plane, shifted to z = offset and tilted by tilt degrees about the x-axis (initialization sweep).
 """
 
@@ -33,7 +33,6 @@ class Enneper(CurvatureTask):
             indexing='ij',
         )
         self.pts_surface_true = enneper((r * torch.cos(phi)).flatten(), (r * torch.sin(phi)).flatten())
-        self.area_true = 2 * math.pi * (r_max**2/2 + r_max**4/2 + r_max**6/6)  ## int (1+r^2)^2 r dr dphi
 
     def pretrain_target(self, x):
         ## The xy-plane, shifted and tilted
@@ -83,25 +82,3 @@ class Enneper(CurvatureTask):
             scale = (self.r_max / (u**2 + v**2).sqrt().clamp_min(1e-12)).clamp(max=1)  ## stay on the patch
             u, v = u * scale, v * scale
         return (x - enneper(u, v)).norm(dim=1)
-
-    def area(self, model, n=600, n_iter=10):
-        """
-        Area of the model surface over the region, as a quadrature over an xy-grid of
-            |grad f| / |df/dz|   (model)   and   (1 + r^2) / (1 - r^2)   (true surface).
-        The same grid and mask are used for both, so the boundary discretization cancels in area_err_discrete.
-        """
-        s = torch.linspace(-1.2, 1.2, n, dtype=torch.float64)
-        x, y = (g.flatten() for g in torch.meshgrid(s, s, indexing='ij'))
-        u, v = self.uv_from_xy(x, y)
-        r2 = u**2 + v**2
-        mask = r2 <= self.r_max**2
-        x, y, r2 = x[mask], y[mask], r2[mask]
-        pts = torch.stack([x, y, (u**2 - v**2)[mask]], dim=1)
-        for _ in range(n_iter):  ## Newton in z onto the model surface
-            g = self.res_lib._grad_x_f_batch(model.params, pts).squeeze(1)
-            pts[:, 2] -= model(pts).squeeze(1) / g[:, 2]
-        g = self.res_lib._grad_x_f_batch(model.params, pts).squeeze(1)
-        cell = (s[1] - s[0]).item()**2
-        a = (g.norm(dim=1) / g[:, 2].abs()).sum().item() * cell
-        a_discrete = ((1 + r2) / (1 - r2)).sum().item() * cell
-        return {"area": a, "area_err_analytic": a / self.area_true - 1, "area_err_discrete": a / a_discrete - 1}
